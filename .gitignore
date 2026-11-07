@@ -1,0 +1,26 @@
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*~
+
+# clasp (si sincronizas con Apps Script desde la línea de comandos)
+.clasp.json
+.clasprc.json
+node_modules/
+
+# Copias personales con la URL de tu aplicación web o datos de tu centro
+privado/
+*.url
+ENLACES.txt
+contador-flotante.local.html
+
+# Exportaciones de la hoja (pueden contener nombres del equipo)
+*.xlsx
+*.csv
+*.ods

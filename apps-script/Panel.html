@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de vacunación</title>
+<style>
+  :root{
+    --bg:#f3f5f7; --card:#fff; --tx:#15212b; --mut:#5d6b78; --bd:#d9e0e6; --soft:#eef2f5;
+    --pri:#0a6c6c; --pri-tx:#fff; --ok:#1a7f37; --warn:#a85500; --err:#b42318; --ref:#15212b;
+    --err-bg:#fdecea; --warn-bg:#fff2e0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0e1317; --card:#172028; --tx:#e7edf2; --mut:#9aa8b4; --bd:#2a3743; --soft:#1e2933;
+           --pri:#38b2ad; --pri-tx:#06201f; --ok:#4cc26a; --warn:#f0a050; --err:#f07a6e; --ref:#e7edf2;
+           --err-bg:#3b1915; --warn-bg:#382711; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px 16px 40px}
+  h1{font-size:1.3rem;margin:0} h2{font-size:1.02rem;margin:0 0 10px}
+  .sub,.nota{color:var(--mut);font-size:.85rem}
+  .nota{margin:8px 0 0}
+  header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;margin-bottom:14px}
+  .links{display:flex;flex-wrap:wrap;gap:8px}
+  .btn{font:inherit;font-weight:600;font-size:.9rem;padding:8px 12px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer;text-decoration:none;display:inline-block}
+  .btn.pri{background:var(--pri);border-color:var(--pri);color:var(--pri-tx)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+  label{display:block;font-size:.78rem;color:var(--mut);font-weight:600}
+  input,select,textarea{font:inherit;margin-top:4px;padding:8px 10px;border-radius:9px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+  input[type=number]{width:100px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px}
+  .kpi .v{font-size:1.65rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
+  .kpi .l{font-size:.8rem;color:var(--mut);font-weight:600}
+  .kpi .d{font-size:.78rem;color:var(--mut)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  .tw{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{font-size:.78rem;color:var(--mut);font-weight:700}
+  tfoot td{font-weight:700;border-bottom:0}
+  .mini{display:inline-block;width:80px;height:8px;background:var(--soft);border-radius:4px;vertical-align:middle;margin-left:6px;overflow:hidden}
+  .mini i{display:block;height:100%;background:var(--pri)}
+  .sem{display:grid;grid-template-columns:96px 1fr 52px;gap:8px;align-items:center;margin:6px 0;font-size:.85rem}
+  .sem .pista{position:relative;height:22px;background:var(--soft);border-radius:6px;overflow:visible}
+  .sem .apil{display:flex;height:100%;border-radius:6px;overflow:hidden}
+  .sem .ref{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed var(--ref)}
+  .sem .ref.cap{border-left-style:solid;border-left-color:var(--err)}
+  .ley{display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:var(--mut);margin-top:8px}
+  .ley i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+  .ley .lin{width:14px;height:0;border-top:2px dashed var(--ref);border-radius:0;vertical-align:3px}
+  .ley .lin.cap{border-top-style:solid;border-top-color:var(--err)}
+  details summary{cursor:pointer;font-weight:700}
+  .cfg{display:flex;flex-wrap:wrap;gap:14px;margin:12px 0}
+  .vtab td,.vtab th{text-align:left}
+  .vtab input[type=text]{width:100%;min-width:120px}
+  textarea{width:100%;min-height:120px}
+  .pin{max-width:340px;margin:12vh auto;text-align:center}
+  .pin input{width:100%;font-size:1.4rem;text-align:center;letter-spacing:.3em}
+  .msg{min-height:1.3em;font-size:.9rem;margin-top:8px}
+  .vacio{color:var(--mut);padding:10px 0}
+  .centro{font-size:.78rem;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;min-height:1em}
+  .pin .centro{margin-bottom:4px}
+  /* Asistente de primer uso */
+  .asis{max-width:540px;margin:5vh auto}
+  .asis form{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+  .asis input{width:100%}
+  .asis .dos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .asis textarea{min-height:110px}
+  /* Stock */
+  .seg{display:inline-flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+  .seg button{font:inherit;border:0;padding:9px 14px;background:var(--bg);color:var(--tx);cursor:pointer}
+  .seg button+button{border-left:1px solid var(--bd)}
+  .seg button[aria-pressed="true"]{background:var(--pri);color:var(--pri-tx);font-weight:700}
+  .stkf{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:8px}
+  .stkf .nota-in{flex:1 1 200px} .stkf .nota-in input{width:100%}
+  tr.bajo td{background:var(--err-bg)} tr.bajo td:first-child{box-shadow:inset 4px 0 var(--err)}
+  tr.pocas td{background:var(--warn-bg)} tr.pocas td:first-child{box-shadow:inset 4px 0 var(--warn)}
+  .ley .bajo{background:var(--err-bg);box-shadow:inset 0 0 0 2px var(--err)}
+  .ley .pocas{background:var(--warn-bg);box-shadow:inset 0 0 0 2px var(--warn)}
+  td.l,th.l{text-align:left} td.txt{white-space:normal;min-width:160px;text-align:left}
+  @media (max-width:520px){
+    .sem{grid-template-columns:72px 1fr 44px} .kpi .v{font-size:1.4rem}
+    .seg{display:flex} .seg button{flex:1;padding:9px 6px}
+    .asis .dos{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section id="vPin" class="card pin">
+    <div class="centro" id="pinCentro"></div>
+    <h1>Panel de vacunación</h1>
+    <p class="sub">Introduce el PIN del panel</p>
+    <form id="fPin"><input id="pin" type="password" inputmode="numeric" autocomplete="current-password" aria-label="PIN">
+      <button class="btn pri" style="margin-top:10px;width:100%">Entrar</button></form>
+    <div class="msg err" id="pinMsg" role="alert"></div>
+  </section>
+
+  <section id="vAsis" class="card asis" hidden>
+    <h1>Primer uso: prepara el panel</h1>
+    <p class="sub">El panel todavía tiene el PIN de fábrica (1234). Antes de entrar, pon el nombre del centro, un PIN nuevo y las listas de vacunas y profesionales. Todo se puede cambiar después en «Configuración del centro».</p>
+    <form id="fAsis" novalidate>
+      <div><label for="aCen">Nombre del centro</label><input id="aCen" type="text" maxlength="80" placeholder="Centro de Salud …" autocomplete="organization"></div>
+      <div class="dos">
+        <div><label for="aPin">PIN nuevo (4 a 20 caracteres)</label><input id="aPin" type="password" autocomplete="new-password"></div>
+        <div><label for="aPin2">Repite el PIN</label><input id="aPin2" type="password" autocomplete="new-password"></div>
+      </div>
+      <div><label for="aVac">Vacunas que se ponen (una por línea)</label><textarea id="aVac" placeholder="Gripe&#10;COVID-19"></textarea></div>
+      <div><label for="aPro">Profesionales que vacunan (uno por línea; opcional)</label><textarea id="aPro" placeholder="Nombre Apellido"></textarea></div>
+      <button class="btn pri" id="aGuardar">Guardar y entrar</button>
+    </form>
+    <div class="msg" id="asisMsg" role="alert"></div>
+  </section>
+
+  <div id="vPanel" hidden>
+    <header>
+      <div><div class="centro" id="hCentro"></div><h1>Panel de vacunación</h1><div class="sub" id="rangoTxt"></div></div>
+      <div class="links">
+        <button class="btn" id="copiar" type="button">Copiar enlace del contador</button>
+        <a class="btn" id="abrirHoja" target="_blank" rel="noopener">Abrir la hoja</a>
+      </div>
+    </header>
+
+    <section class="card bar">
+      <div><label for="periodo">Periodo</label>
+        <select id="periodo">
+          <option value="hoy">Hoy</option>
+          <option value="semana" selected>Esta semana</option>
+          <option value="pasada">Semana pasada</option>
+          <option value="4sem">Últimas 4 semanas</option>
+          <option value="todo">Toda la campaña</option>
+          <option value="otro">Elegir fechas…</option>
+        </select></div>
+      <div id="fechas" hidden style="display:flex;gap:10px">
+        <div><label for="desde">Desde</label><input type="date" id="desde"></div>
+        <div><label for="hasta">Hasta</label><input type="date" id="hasta"></div>
+      </div>
+      <button class="btn pri" id="actualizar" type="button">Actualizar</button>
+      <span class="sub" id="cargaTxt"></span>
+    </section>
+
+    <section class="kpis" id="kpis"></section>
+
+    <section class="card">
+      <h2>Dosis necesarias y puestas, por vacuna</h2>
+      <div class="tw"><table id="tVac"></table></div>
+      <p class="nota" id="notaVac"></p>
+    </section>
+
+    <section class="card" id="cStock">
+      <h2>Stock</h2>
+      <div class="tw"><table id="tStock"><tbody><tr><td class="vacio">Cargando stock…</td></tr></tbody></table></div>
+      <div class="ley">
+        <span><i class="bajo"></i>Por debajo del stock mínimo</span>
+        <span><i class="pocas"></i>Quedan menos de 2 semanas</span>
+      </div>
+      <p class="nota" id="notaStock">Stock = último recuento + entradas − mermas − dosis puestas desde ese recuento. Consumo medio = dosis puestas en los últimos 14 días ÷ 2.</p>
+
+      <h2 style="margin-top:18px">Añadir movimiento</h2>
+      <form id="fStock" novalidate>
+        <div class="seg" id="sTipos" role="group" aria-label="Tipo de movimiento">
+          <button type="button" data-k="Entrada" aria-pressed="true">Entrada</button>
+          <button type="button" data-k="Merma" aria-pressed="false">Merma</button>
+          <button type="button" data-k="Recuento" aria-pressed="false">Recuento</button>
+        </div>
+        <p class="sub" id="sAyuda" style="margin:8px 0 0"></p>
+        <div class="stkf">
+          <div><label for="sVac">Vacuna</label><select id="sVac"></select></div>
+          <div><label for="sCan" id="sCanL">Dosis que llegan</label><input type="number" id="sCan" min="0" step="1" inputmode="numeric"></div>
+          <div id="sMotW" hidden><label for="sMot">Motivo</label>
+            <select id="sMot"><option>Rota</option><option>Caducada</option><option>Desechada</option><option>Otro motivo</option></select></div>
+          <div class="nota-in"><label for="sNota">Nota (opcional)</label><input type="text" id="sNota" maxlength="150" placeholder="Nº de pedido, lote… (sin datos de pacientes)"></div>
+          <button class="btn pri" id="sGuardar">Guardar</button>
+        </div>
+      </form>
+      <div class="msg" id="sMsg" role="status"></div>
+
+      <h2 style="margin-top:14px">Últimos movimientos</h2>
+      <div class="tw"><table id="tMov"></table></div>
+      <p class="nota">Para corregir o borrar un movimiento, edítalo en la pestaña «Stock» de la hoja.</p>
+    </section>
+
+    <section class="card">
+      <h2>Evolución por semanas</h2>
+      <div id="semanas"></div>
+      <div class="ley" id="ley"></div>
+    </section>
+
+    <section class="card">
+      <h2>Día a día</h2>
+      <div class="tw"><table id="tDia"></table></div>
+      <p class="nota">«Capacidad real» = profesionales que registraron ese día × huecos por profesional.</p>
+    </section>
+
+    <section class="card" id="cProf">
+      <h2>Por profesional</h2>
+      <div class="tw"><table id="tProf"></table></div>
+    </section>
+
+    <section class="card">
+      <details id="dCfg">
+        <summary>Configuración del centro</summary>
+        <div class="cfg">
+          <div style="flex:1 1 260px"><label for="cCen">Nombre del centro</label><input type="text" id="cCen" maxlength="80" style="width:100%" placeholder="Centro de Salud …"></div>
+        </div>
+        <div class="cfg">
+          <div><label for="cEnf">Enfermeras/os que vacunan</label><input type="number" min="0" step="1" id="cEnf"></div>
+          <div><label for="cHue">Huecos por enfermera/o y día</label><input type="number" min="0" step="1" id="cHue"></div>
+          <div><label for="cDia">Días de vacunación por semana</label><input type="number" min="1" max="7" step="1" id="cDia"></div>
+        </div>
+        <p class="sub" id="capTxt"></p>
+        <h2 style="margin-top:14px">Vacunas</h2>
+        <div class="tw"><table class="vtab"><thead><tr><th>Vacuna</th><th>Dosis necesarias por semana</th><th>Stock mínimo</th><th>Activa</th><th></th></tr></thead><tbody id="cVac"></tbody></table></div>
+        <button class="btn" id="addVac" type="button" style="margin-top:8px">Añadir vacuna</button>
+        <h2 style="margin-top:16px">Profesionales (uno por línea)</h2>
+        <textarea id="cPro" placeholder="Nombre Apellido"></textarea>
+        <div class="cfg">
+          <label style="display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--tx)"><input type="checkbox" id="cPorProf" style="margin:0">Mostrar datos por profesional en el panel</label>
+          <div><label for="cPin">Nuevo PIN (vacío = no cambiar)</label><input type="password" id="cPin" autocomplete="new-password"></div>
+        </div>
+        <button class="btn pri" id="guardar" type="button">Guardar configuración</button>
+        <div class="msg" id="cfgMsg" role="status"></div>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var COLORES = ['#0a6c6c','#2e5aa8','#8a3ea3','#b4461f','#3d7a1f','#9a6b00','#a1315a','#41606f'];
+  var $ = function(id){ return document.getElementById(id); };
+  function run(fn){
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(res, rej){
+      var r = google.script.run.withSuccessHandler(res).withFailureHandler(rej);
+      r[fn].apply(r, args);
+    });
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function nf(n, d){ return Number(n || 0).toLocaleString('es-ES', {maximumFractionDigits: d == null ? 0 : d}); }
+  function pct(a, b){ return b > 0 ? Math.round(a / b * 100) : null; }
+  function pctTxt(p){ return p == null ? '—' : p + ' %'; }
+  function clase(p){ return p == null ? '' : p >= 90 ? 'ok' : p >= 70 ? 'warn' : 'err'; }
+  function errTxt(e){ return (e && e.message ? e.message : String(e || 'Error')).replace(/^Exception:\s*/, ''); }
+  var ses = { get: function(){ try { return sessionStorage.getItem('vac_pin'); } catch(e){ return null; } },
+              set: function(v){ try { v == null ? sessionStorage.removeItem('vac_pin') : sessionStorage.setItem('vac_pin', v); } catch(e){} } };
+
+  // Fechas como texto yyyy-mm-dd (hora de Madrid)
+  var fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Madrid', year:'numeric', month:'2-digit', day:'2-digit'});
+  function hoyStr(){ return fmtDia.format(new Date()); }
+  function aUTC(f){ var a = f.split('-').map(Number); return new Date(Date.UTC(a[0], a[1] - 1, a[2])); }
+  function str(d){ return d.toISOString().slice(0, 10); }
+  function sumar(f, n){ var d = aUTC(f); d.setUTCDate(d.getUTCDate() + n); return str(d); }
+  function lunes(f){ var d = aUTC(f); return sumar(f, -((d.getUTCDay() + 6) % 7)); }
+  function diaCorto(f){ var d = aUTC(f); return d.toLocaleDateString('es-ES', {timeZone:'UTC', weekday:'short', day:'numeric', month:'numeric'}); }
+  function laborables(desde, hasta){ // lunes a viernes, sin pasar de hoy
+    var h = hasta < hoyStr() ? hasta : hoyStr(), n = 0;
+    for (var f = desde; f <= h; f = sumar(f, 1)){ var w = aUTC(f).getUTCDay(); if (w >= 1 && w <= 5) n++; }
+    return n;
+  }
+
+  var PIN = ses.get(), datos = null, stk = null;
+  var PIN_FABRICA = '1234';
+
+  function ponerCentro(c){
+    c = c || '';
+    $('pinCentro').textContent = c; $('hCentro').textContent = c;
+    document.title = 'Panel de vacunación' + (c ? ' · ' + c : '');
+  }
+  function vista(v){ $('vPin').hidden = v !== 'pin'; $('vAsis').hidden = v !== 'asis'; $('vPanel').hidden = v !== 'panel'; }
+  function volverPin(m){
+    ses.set(null); PIN = null; vista('pin');
+    $('pinMsg').textContent = m || ''; $('pin').value = ''; $('pin').focus();
+  }
+
+  // ---------- PIN ----------
+  function entrar(pin){
+    $('pinMsg').textContent = '';
+    return run('comprobarPin', pin).then(function(r){
+      PIN = pin; ses.set(pin);
+      ponerCentro(r && r.centro);
+      if (r && r.primerUso) mostrarAsistente(r);
+      else { vista('panel'); cargar(); }
+    }).catch(function(e){ volverPin(errTxt(e)); });
+  }
+  $('fPin').addEventListener('submit', function(e){ e.preventDefault(); entrar($('pin').value.trim()); });
+
+  // ---------- Asistente de primer uso ----------
+  function lineas(id){ return $(id).value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean); }
+  function mostrarAsistente(r){
+    vista('asis');
+    $('aCen').value = r.centro || '';
+    $('aVac').value = (r.vacunas || []).join('\n');
+    $('aPro').value = (r.profesionales || []).join('\n');
+    $('asisMsg').textContent = '';
+    $('aCen').focus();
+  }
+  $('fAsis').addEventListener('submit', function(e){
+    e.preventDefault();
+    var m = $('asisMsg'), b = $('aGuardar');
+    var d = { centro: $('aCen').value.trim(), pin: $('aPin').value.trim(), vacunas: lineas('aVac'), profesionales: lineas('aPro') };
+    var fallo = !d.centro ? 'Escribe el nombre del centro.' :
+      !/^\S{4,20}$/.test(d.pin) ? 'El PIN nuevo tiene que tener entre 4 y 20 caracteres, sin espacios.' :
+      d.pin === PIN_FABRICA ? 'El PIN nuevo no puede ser ' + PIN_FABRICA + '.' :
+      d.pin !== $('aPin2').value.trim() ? 'Los dos PIN no coinciden.' :
+      !d.vacunas.length ? 'Escribe al menos una vacuna.' : '';
+    if (fallo){ m.className = 'msg err'; m.textContent = fallo; return; }
+    b.disabled = true; m.className = 'msg'; m.textContent = 'Guardando…';
+    run('completarAsistente', PIN, d).then(function(){
+      PIN = d.pin; ses.set(PIN); ponerCentro(d.centro);
+      $('aPin').value = ''; $('aPin2').value = '';
+      vista('panel'); cargar();
+      $('dCfg').open = true; // para que completen huecos, enfermeras y dosis necesarias
+    }).catch(function(e){
+      var t = errTxt(e);
+      if (/PIN incorrecto/i.test(t)) return volverPin(t);
+      m.className = 'msg err'; m.textContent = 'No se guardó: ' + t;
+    }).then(function(){ b.disabled = false; });
+  });
+
+  // ---------- Periodo ----------
+  function rango(){
+    var h = hoyStr(), p = $('periodo').value;
+    if (p === 'hoy') return [h, h];
+    if (p === 'semana') return [lunes(h), sumar(lunes(h), 6)];
+    if (p === 'pasada') return [sumar(lunes(h), -7), sumar(lunes(h), -1)];
+    if (p === '4sem') return [sumar(lunes(h), -21), sumar(lunes(h), 6)];
+    if (p === 'todo') return ['', h];
+    return [$('desde').value, $('hasta').value];
+  }
+  $('periodo').addEventListener('change', function(){
+    var otro = this.value === 'otro';
+    $('fechas').hidden = !otro; $('fechas').style.display = otro ? 'flex' : 'none';
+    if (otro && !$('desde').value){ $('desde').value = lunes(hoyStr()); $('hasta').value = hoyStr(); }
+    if (!otro) cargar();
+  });
+  $('fechas').style.display = 'none';
+  $('actualizar').addEventListener('click', function(){ cargar(); });
+
+  function cargar(){
+    var r = rango();
+    $('cargaTxt').textContent = 'Cargando…'; $('actualizar').disabled = true;
+    cargarStock();
+    return run('resumen', PIN, r[0], r[1]).then(function(d){
+      datos = d; pintar(); $('cargaTxt').textContent = '';
+    }).catch(function(e){
+      var m = errTxt(e);
+      if (/PIN/i.test(m)) volverPin(m);
+      else $('cargaTxt').textContent = 'No se pudo cargar: ' + m;
+    }).then(function(){ $('actualizar').disabled = false; });
+  }
+
+  // ---------- Pintar ----------
+  function nombresVacunas(){
+    var vistos = {}, out = [];
+    datos.config.vacunas.forEach(function(v){ if (!vistos[v.nombre]){ vistos[v.nombre] = 1; out.push(v.nombre); } });
+    Object.keys(datos.porVacuna).forEach(function(v){ if (!vistos[v]){ vistos[v] = 1; out.push(v); } });
+    return out;
+  }
+  function color(v){ var i = nombresVacunas().indexOf(v); return COLORES[(i < 0 ? 0 : i) % COLORES.length]; }
+
+  function pintar(){
+    var c = datos.config, d = datos;
+    var dias = laborables(d.desde, d.hasta);
+    var semanasEq = dias / 5;
+    var capDia = c.enfermeras * c.huecos;
+    var capSem = capDia * c.dias;
+    var capPer = capSem * semanasEq;
+    var necSem = c.vacunas.filter(function(v){ return v.activa; }).reduce(function(s, v){ return s + v.necesarias; }, 0);
+    var necPer = necSem * semanasEq;
+    var puestas = Object.keys(d.porVacuna).reduce(function(s, k){ return s + d.porVacuna[k]; }, 0);
+    var diasConDatos = d.porDia.length;
+
+    $('rangoTxt').textContent = (d.desde === d.hasta ? diaCorto(d.desde) : diaCorto(d.desde) + ' – ' + diaCorto(d.hasta)) +
+      ' · ' + dias + ' día' + (dias === 1 ? '' : 's') + ' laborable' + (dias === 1 ? '' : 's') + ' hasta hoy';
+    $('abrirHoja').href = d.urlHoja || '#';
+    ponerCentro(c.centro);
+
+    var pOcu = pct(puestas, capPer), pNec = pct(puestas, necPer);
+    $('kpis').innerHTML = [
+      kpi('Capacidad diaria', nf(capDia) + ' huecos', nf(c.enfermeras) + ' enf. × ' + nf(c.huecos) + ' huecos'),
+      kpi('Capacidad semanal', nf(capSem) + ' huecos', '× ' + nf(c.dias) + ' días de vacunación'),
+      kpi('Dosis necesarias / semana', nf(necSem), necSem ? (capSem ? pctTxt(pct(necSem, capSem)) + ' de la capacidad' : '') : 'Pon las cifras en Configuración'),
+      kpi('Dosis puestas', nf(puestas), diasConDatos ? 'media ' + nf(puestas / diasConDatos, 1) + ' por día con registros' : 'Sin registros en el periodo'),
+      kpi('Huecos aprovechados', pctTxt(pOcu), 'de ' + nf(capPer) + ' huecos del periodo', clase(pOcu)),
+      kpi('Necesidades cubiertas', pctTxt(pNec), 'de ' + nf(necPer) + ' dosis necesarias', clase(pNec))
+    ].join('');
+
+    // Por vacuna
+    var filas = nombresVacunas().map(function(n){
+      var v = c.vacunas.filter(function(x){ return x.nombre === n; })[0];
+      var nec = v && v.activa ? v.necesarias * semanasEq : 0;
+      var pue = d.porVacuna[n] || 0;
+      var p = pct(pue, nec);
+      return '<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + color(n) + ';margin-right:6px"></i>' + esc(n) + (v && !v.activa ? ' <span class="sub">(inactiva)</span>' : '') + '</td>' +
+        '<td>' + (nec ? nf(nec) : '—') + '</td><td>' + nf(pue) + '</td>' +
+        '<td class="' + (nec ? (pue - nec >= 0 ? 'ok' : 'err') : '') + '">' + (nec ? (pue - nec > 0 ? '+' : '') + nf(pue - nec) : '—') + '</td>' +
+        '<td class="' + clase(p) + '">' + pctTxt(p) + '<span class="mini"><i style="width:' + Math.min(100, p || 0) + '%"></i></span></td></tr>';
+    });
+    $('tVac').innerHTML = '<thead><tr><th>Vacuna</th><th>Necesarias</th><th>Puestas</th><th>Diferencia</th><th>Cubierto</th></tr></thead><tbody>' +
+      filas.join('') + '</tbody><tfoot><tr><td>Total</td><td>' + nf(necPer) + '</td><td>' + nf(puestas) + '</td><td>' + (necPer ? (puestas - necPer > 0 ? '+' : '') + nf(puestas - necPer) : '—') + '</td><td>' + pctTxt(pNec) + '</td></tr></tfoot>';
+    $('notaVac').textContent = 'Necesarias del periodo = necesarias por semana × ' + nf(semanasEq, 2) + ' semanas (' + dias + ' días laborables ÷ 5).' +
+      (d.porTurno && d.porTurno['Tarde'] ? ' Mañana: ' + nf(d.porTurno['Mañana'] || 0) + ' · Tarde: ' + nf(d.porTurno['Tarde']) + '.' : '');
+
+    pintarSemanas(capSem, necSem);
+    pintarDias();
+    pintarProf();
+    pintarConfig();
+  }
+
+  function kpi(l, v, det, cl){ return '<div class="kpi"><div class="l">' + esc(l) + '</div><div class="v ' + (cl || '') + '">' + esc(v) + '</div><div class="d">' + esc(det || '') + '</div></div>'; }
+
+  function pintarSemanas(capSem, necSem){
+    var s = datos.porSemana.slice(-16);
+    if (!s.length){ $('semanas').innerHTML = '<div class="vacio">Todavía no hay registros.</div>'; $('ley').innerHTML = ''; return; }
+    var max = Math.max(capSem, necSem, Math.max.apply(null, s.map(function(x){ return x.total; }))) || 1;
+    var nombres = nombresVacunas();
+    $('semanas').innerHTML = s.map(function(x){
+      var seg = nombres.map(function(n){ var v = x.v[n] || 0; return v > 0 ? '<span title="' + esc(n) + ': ' + v + '" style="width:' + (v / max * 100) + '%;background:' + color(n) + '"></span>' : ''; }).join('');
+      return '<div class="sem"><div>' + esc(x.semana.slice(5)) + ' <span class="sub">' + esc(diaCorto(x.desde).replace(/^\S+\s/, '')) + '</span></div>' +
+        '<div class="pista"><div class="apil">' + seg + '</div>' +
+        (necSem ? '<div class="ref" style="left:' + (necSem / max * 100) + '%" title="Necesarias ' + necSem + '"></div>' : '') +
+        (capSem ? '<div class="ref cap" style="left:' + (capSem / max * 100) + '%" title="Capacidad ' + capSem + '"></div>' : '') +
+        '</div><div style="text-align:right;font-weight:700">' + nf(x.total) + '</div></div>';
+    }).join('');
+    $('ley').innerHTML = nombres.map(function(n){ return '<span><i style="background:' + color(n) + '"></i>' + esc(n) + '</span>'; }).join('') +
+      (necSem ? '<span><i class="lin"></i>Necesarias / semana (' + nf(necSem) + ')</span>' : '') +
+      (capSem ? '<span><i class="lin cap"></i>Capacidad / semana (' + nf(capSem) + ')</span>' : '');
+  }
+
+  function pintarDias(){
+    var c = datos.config, nombres = nombresVacunas();
+    if (!datos.porDia.length){ $('tDia').innerHTML = '<tbody><tr><td class="vacio">Sin registros en el periodo.</td></tr></tbody>'; return; }
+    $('tDia').innerHTML = '<thead><tr><th>Día</th><th>Profesionales</th><th>Capacidad real</th><th>Puestas</th><th>Aprovechado</th>' +
+      nombres.map(function(n){ return '<th>' + esc(n) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      datos.porDia.slice().reverse().map(function(x){
+        var cap = x.profesionales * c.huecos, p = pct(x.total, cap);
+        return '<tr><td>' + esc(diaCorto(x.fecha)) + '</td><td>' + x.profesionales + '</td><td>' + nf(cap) + '</td><td><b>' + nf(x.total) + '</b></td>' +
+          '<td class="' + clase(p) + '">' + pctTxt(p) + '</td>' + nombres.map(function(n){ return '<td>' + nf(x.v[n] || 0) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+  }
+
+  function pintarProf(){
+    var lista = datos.porProfesional, nombres = nombresVacunas();
+    $('cProf').hidden = !lista;
+    if (!lista) return;
+    if (!lista.length){ $('tProf').innerHTML = '<tbody><tr><td class="vacio">Sin registros en el periodo.</td></tr></tbody>'; return; }
+    var huecos = datos.config.huecos;
+    $('tProf').innerHTML = '<thead><tr><th>Profesional</th><th>Días</th><th>Total</th><th>Media / día</th><th>Huecos aprovechados</th>' +
+      nombres.map(function(n){ return '<th>' + esc(n) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      lista.map(function(x){
+        var p = pct(x.total, x.dias * huecos);
+        return '<tr><td>' + esc(x.nombre) + '</td><td>' + x.dias + '</td><td><b>' + nf(x.total) + '</b></td><td>' + nf(x.total / (x.dias || 1), 1) + '</td>' +
+          '<td>' + pctTxt(p) + '</td>' + nombres.map(function(n){ return '<td>' + nf(x.v[n] || 0) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+  }
+
+  // ---------- Stock ----------
+  var fmtMov = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+  var fmtRec = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', day:'numeric', month:'short'});
+  var AYUDA = {
+    Entrada: ['Dosis que llegan', 'Llegada de un pedido: las dosis se suman al stock.'],
+    Merma: ['Dosis perdidas', 'Dosis rotas, caducadas o desechadas: se restan del stock.'],
+    Recuento: ['Dosis que hay en la nevera', 'Recuento físico: el stock pasa a ser exactamente esta cifra y, desde ahora, se le restan las dosis que se pongan.']
+  };
+  function tipoStock(){ var b = document.querySelector('#sTipos button[aria-pressed="true"]'); return b ? b.getAttribute('data-k') : 'Entrada'; }
+  function stockDe(n){ return stk ? stk.vacunas.filter(function(v){ return v.nombre === n; })[0] : null; }
+  function ayudaStock(){
+    var t = tipoStock(), a = AYUDA[t], v = stockDe($('sVac').value);
+    $('sCanL').textContent = a[0];
+    $('sMotW').hidden = t !== 'Merma';
+    $('sAyuda').textContent = a[1] + (t === 'Recuento' && v ? ' Ahora el cálculo dice ' + nf(v.stock) + '.' : '');
+  }
+  document.querySelectorAll('#sTipos button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#sTipos button').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      ayudaStock(); $('sCan').focus();
+    });
+  });
+  $('sVac').addEventListener('change', ayudaStock);
+
+  function cargarStock(){
+    return run('stock', PIN).then(function(s){ stk = s; pintarStock(); })
+      .catch(function(e){
+        var m = errTxt(e);
+        if (/PIN/i.test(m)) return volverPin(m);
+        $('sMsg').className = 'msg err'; $('sMsg').textContent = 'No se pudo cargar el stock: ' + m;
+      });
+  }
+
+  function pintarStock(){
+    var lista = stk.vacunas, sinRec = 0;
+    if (!lista.length) $('tStock').innerHTML = '<tbody><tr><td class="vacio">No hay vacunas activas.</td></tr></tbody>';
+    else $('tStock').innerHTML = '<thead><tr><th>Vacuna</th><th>Stock actual</th><th>Semanas que quedan</th><th>Stock mínimo</th><th>Consumo / semana</th><th class="l">Último recuento</th></tr></thead><tbody>' +
+      lista.map(function(v){
+        var cl = v.bajoMinimo ? 'bajo' : v.pocasSemanas ? 'pocas' : '';
+        var rec = v.ultimoRecuento;
+        if (!rec) sinRec++;
+        var detalle = (rec ? 'Recuento ' + rec.cantidad : 'Sin recuento: 0') + ' + entradas ' + v.entradas + ' − mermas ' + v.mermas + ' − puestas ' + v.puestas;
+        return '<tr class="' + cl + '" title="' + esc(detalle) + '"><td>' + esc(v.nombre) + (v.activa ? '' : ' <span class="sub">(inactiva)</span>') + '</td>' +
+          '<td><b class="' + (v.bajoMinimo ? 'err' : '') + '">' + nf(v.stock) + '</b></td>' +
+          '<td class="' + (v.pocasSemanas ? 'warn' : '') + '">' + (v.semanas == null ? '—' : nf(v.semanas, 1)) + '</td>' +
+          '<td>' + (v.minimo ? nf(v.minimo) : '—') + '</td>' +
+          '<td>' + nf(v.consumoSemanal, 1) + '</td>' +
+          '<td class="l">' + (rec ? esc(fmtRec.format(new Date(rec.t))) + ' <span class="sub">(' + nf(rec.cantidad) + ')</span>' : '<span class="sub">sin recuento</span>') + '</td></tr>';
+      }).join('') + '</tbody>';
+    $('notaStock').textContent = 'Stock = último recuento + entradas − mermas − dosis puestas desde ese recuento. Consumo medio = dosis puestas en los últimos 14 días ÷ 2.' +
+      (sinRec ? ' Las vacunas «sin recuento» parten de 0: haz un Recuento con lo que hay en la nevera para empezar.' : '');
+
+    var sel = $('sVac'), antes = sel.value;
+    sel.innerHTML = (stk.nombres || []).map(function(n){ return '<option>' + esc(n) + '</option>'; }).join('');
+    if (antes && (stk.nombres || []).indexOf(antes) >= 0) sel.value = antes;
+    ayudaStock();
+
+    var movs = stk.movimientos || [];
+    var signo = { Entrada: '+', Merma: '−', Recuento: '= ' };
+    $('tMov').innerHTML = movs.length ? '<thead><tr><th>Cuándo</th><th class="l">Vacuna</th><th class="l">Tipo</th><th>Cantidad</th><th class="l">Nota</th></tr></thead><tbody>' +
+      movs.map(function(m){
+        return '<tr><td>' + esc(fmtMov.format(new Date(m.t))) + '</td><td class="l">' + esc(m.vacuna) + '</td>' +
+          '<td class="l ' + (m.tipo === 'Merma' ? 'err' : m.tipo === 'Entrada' ? 'ok' : '') + '">' + esc(m.tipo) + '</td>' +
+          '<td>' + signo[m.tipo] + nf(m.cantidad) + '</td><td class="txt">' + esc(m.nota || '') + '</td></tr>';
+      }).join('') + '</tbody>' : '<tbody><tr><td class="vacio">Todavía no hay movimientos de stock.</td></tr></tbody>';
+  }
+
+  $('fStock').addEventListener('submit', function(e){
+    e.preventDefault();
+    var m = $('sMsg'), b = $('sGuardar'), t = tipoStock();
+    var cant = $('sCan').value.trim(), n = Number(cant);
+    var vac = $('sVac').value;
+    if (!vac){ m.className = 'msg err'; m.textContent = 'Elige una vacuna.'; return; }
+    if (cant === '' || !isFinite(n) || n < 0 || n !== Math.floor(n) || (t !== 'Recuento' && n === 0)){
+      m.className = 'msg err'; m.textContent = t === 'Recuento' ? 'Escribe cuántas dosis hay (0 o más).' : 'Escribe un número de dosis mayor que cero.';
+      $('sCan').focus(); return;
+    }
+    var nota = $('sNota').value.trim();
+    if (t === 'Merma') nota = $('sMot').value + (nota ? ' · ' + nota : '');
+    var previo = stockDe(vac);
+    b.disabled = true; m.className = 'msg'; m.textContent = 'Guardando…';
+    run('registrarStock', PIN, { vacuna: vac, tipo: t, cantidad: n, nota: nota }).then(function(s){
+      stk = s; pintarStock();
+      $('sCan').value = ''; $('sNota').value = '';
+      var dif = t === 'Recuento' && previo ? n - previo.stock : null;
+      m.className = 'msg ok';
+      m.textContent = 'Guardado: ' + t.toLowerCase() + ' de ' + nf(n) + ' dosis de ' + vac + '.' +
+        (dif ? ' Diferencia con el cálculo: ' + (dif > 0 ? '+' : '') + nf(dif) + '.' : '');
+    }).catch(function(e){
+      var x = errTxt(e);
+      if (/PIN incorrecto/i.test(x)) return volverPin(x);
+      m.className = 'msg err'; m.textContent = 'No se guardó: ' + x;
+    }).then(function(){ b.disabled = false; });
+  });
+
+  // ---------- Configuración ----------
+  var cfgPintada = false;
+  function filaVac(v){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" class="vN" maxlength="40"></td><td><input type="number" class="vS" min="0" step="1"></td>' +
+      '<td><input type="number" class="vM" min="0" step="1"></td>' +
+      '<td><input type="checkbox" class="vA"></td><td><button class="btn vX" type="button" aria-label="Quitar">✕</button></td>';
+    tr.querySelector('.vN').value = v.nombre || '';
+    tr.querySelector('.vS').value = v.necesarias || 0;
+    tr.querySelector('.vM').value = v.minimo || 0;
+    tr.querySelector('.vA').checked = v.activa !== false;
+    tr.querySelector('.vX').addEventListener('click', function(){ tr.remove(); capTxt(); });
+    tr.querySelector('.vS').addEventListener('input', capTxt);
+    tr.querySelector('.vA').addEventListener('change', capTxt);
+    return tr;
+  }
+  function pintarConfig(){
+    if (cfgPintada && $('dCfg').open) return; // no pisar lo que se está editando
+    var c = datos.config;
+    $('cCen').value = c.centro || '';
+    $('cEnf').value = c.enfermeras; $('cHue').value = c.huecos; $('cDia').value = c.dias;
+    $('cPorProf').checked = c.porProfesional;
+    $('cPro').value = c.profesionales.join('\n');
+    var tb = $('cVac'); tb.innerHTML = '';
+    c.vacunas.forEach(function(v){ tb.appendChild(filaVac(v)); });
+    cfgPintada = true; capTxt();
+  }
+  function leerForm(){
+    return {
+      centro: $('cCen').value.trim(),
+      enfermeras: Number($('cEnf').value) || 0, huecos: Number($('cHue').value) || 0, dias: Number($('cDia').value) || 5,
+      porProfesional: $('cPorProf').checked, pin: $('cPin').value.trim(),
+      profesionales: $('cPro').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean),
+      vacunas: Array.prototype.map.call(document.querySelectorAll('#cVac tr'), function(tr){
+        return { nombre: tr.querySelector('.vN').value.trim(), necesarias: Number(tr.querySelector('.vS').value) || 0,
+                 minimo: Number(tr.querySelector('.vM').value) || 0, activa: tr.querySelector('.vA').checked };
+      }).filter(function(v){ return v.nombre; })
+    };
+  }
+  function capTxt(){
+    var f = leerForm(), cap = f.enfermeras * f.huecos, sem = cap * f.dias;
+    var nec = f.vacunas.filter(function(v){ return v.activa; }).reduce(function(s, v){ return s + v.necesarias; }, 0);
+    var p = pct(nec, sem);
+    $('capTxt').innerHTML = 'Capacidad: <b>' + nf(cap) + '</b> huecos al día · <b>' + nf(sem) + '</b> a la semana. ' +
+      'Necesarias: <b>' + nf(nec) + '</b> dosis a la semana' + (p != null ? ' (<span class="' + (p > 100 ? 'err' : 'ok') + '">' + p + ' % de la capacidad</span>)' : '') + '.' +
+      (p > 100 ? ' Faltan unos ' + nf(Math.ceil((nec - sem) / ((f.huecos * f.dias) || 1))) + ' profesionales a jornada de vacunación o más huecos.' : '');
+  }
+  ['cEnf','cHue','cDia'].forEach(function(id){ $(id).addEventListener('input', capTxt); });
+  $('addVac').addEventListener('click', function(){ $('cVac').appendChild(filaVac({nombre:'', necesarias:0, activa:true})); $('cVac').lastChild.querySelector('.vN').focus(); });
+  $('guardar').addEventListener('click', function(){
+    var f = leerForm(), b = this;
+    if (!f.vacunas.length){ $('cfgMsg').className = 'msg err'; $('cfgMsg').textContent = 'Tiene que haber al menos una vacuna.'; return; }
+    b.disabled = true; $('cfgMsg').className = 'msg'; $('cfgMsg').textContent = 'Guardando…';
+    run('guardarConfig', PIN, f).then(function(r){
+      if (f.pin){ PIN = f.pin; ses.set(PIN); $('cPin').value = ''; }
+      $('cfgMsg').className = 'msg ok'; $('cfgMsg').textContent = 'Guardado.' + (r.pinCambiado ? ' PIN cambiado.' : '') + ' Los contadores lo verán al recargar la página.';
+      cfgPintada = false; $('dCfg').open = false;
+      return cargar();
+    }).catch(function(e){ $('cfgMsg').className = 'msg err'; $('cfgMsg').textContent = 'No se guardó: ' + errTxt(e); })
+      .then(function(){ b.disabled = false; });
+  });
+
+  $('copiar').addEventListener('click', function(){
+    var u = datos && datos.urlContador;
+    if (!u){ alert('El enlace aparece cuando la aplicación está implementada.'); return; }
+    var hecho = function(){ $('copiar').textContent = 'Enlace copiado ✓'; setTimeout(function(){ $('copiar').textContent = 'Copiar enlace del contador'; }, 2000); };
+    if (navigator.clipboard) navigator.clipboard.writeText(u).then(hecho, function(){ prompt('Copia este enlace:', u); });
+    else prompt('Copia este enlace:', u);
+  });
+
+  run('infoPublica').then(function(r){ if (!PIN || !$('vPin').hidden) ponerCentro(r && r.centro); }).catch(function(){});
+  if (PIN) entrar(PIN); else $('pin').focus();
+})();
+</script>
+</body>
+</html>

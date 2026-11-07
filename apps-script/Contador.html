@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contador de vacunas</title>
+<style>
+  :root{
+    --bg:#f3f5f7; --card:#fff; --tx:#15212b; --mut:#5d6b78; --bd:#d9e0e6;
+    --pri:#0a6c6c; --pri-tx:#fff; --ok:#1a7f37; --warn:#a85500; --err:#b42318;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0e1317; --card:#172028; --tx:#e7edf2; --mut:#9aa8b4; --bd:#2a3743;
+           --pri:#38b2ad; --pri-tx:#06201f; --ok:#4cc26a; --warn:#f0a050; --err:#f07a6e; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:760px;margin:0 auto;padding:14px 16px 32px}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+  h1{font-size:1.25rem;margin:0}
+  .sub{color:var(--mut);font-size:.9rem}
+  .centro{font-size:.78rem;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em}
+  .centro:empty{display:none}
+  .estado{font-size:.85rem;font-weight:600;padding:6px 10px;border-radius:999px;border:1px solid var(--bd);background:var(--card);white-space:nowrap}
+  .estado.ok{color:var(--ok)} .estado.warn{color:var(--warn)} .estado.err{color:var(--err)}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px}
+  .quien{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:14px}
+  label{display:block;font-size:.8rem;color:var(--mut);font-weight:600}
+  select,input{width:100%;margin-top:4px;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+  .quien.falta select,.quien.falta input{border-color:var(--err);outline:2px solid var(--err)}
+  .seg{display:flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+  .seg button{font:inherit;border:0;padding:10px 14px;background:var(--bg);color:var(--tx);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--pri);color:var(--pri-tx);font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+  .vac{display:flex;flex-direction:column;border-radius:16px;overflow:hidden;border:1px solid var(--bd);background:var(--card)}
+  .mas{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+       min-height:150px;padding:14px 8px;background:var(--c);color:#fff;text-align:center;-webkit-tap-highlight-color:transparent;
+       transition:transform .08s, filter .15s}
+  .mas:active{transform:scale(.97)} .mas:focus-visible{outline:3px solid var(--tx);outline-offset:-3px}
+  .mas.flash{filter:brightness(1.25)}
+  .nom{font-weight:700;font-size:1.05rem;text-shadow:0 1px 1px rgba(0,0,0,.2)}
+  .num{font-size:2.6rem;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
+  .mas1{font-size:.8rem;opacity:.9;font-weight:600}
+  .menos{font:inherit;font-weight:600;border:0;border-top:1px solid var(--bd);background:var(--card);color:var(--mut);padding:9px;cursor:pointer}
+  .menos:disabled{opacity:.4;cursor:default}
+  .tot{display:flex;justify-content:space-around;text-align:center;margin-top:14px}
+  .tot b{display:block;font-size:1.6rem;font-variant-numeric:tabular-nums}
+  .tot span{font-size:.8rem;color:var(--mut)}
+  .ayuda{color:var(--mut);font-size:.85rem;margin-top:14px}
+  .aviso{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);max-width:92vw;background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:.9rem;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  .cargando{color:var(--mut);padding:30px 0;text-align:center}
+  @media (max-width:420px){ .quien{grid-template-columns:1fr} .grid{grid-template-columns:1fr 1fr;gap:10px} .mas{min-height:128px} .num{font-size:2.2rem} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="centro" id="centro"></div>
+      <h1>Contador de vacunas</h1>
+      <div class="sub" id="fecha"></div>
+    </div>
+    <div class="estado" id="estado" role="status">Conectando…</div>
+  </header>
+
+  <section class="card quien" id="quien">
+    <div>
+      <label for="prof">Profesional</label>
+      <select id="prof" hidden></select>
+      <input id="profTxt" placeholder="Escribe tu nombre" autocomplete="name" hidden>
+    </div>
+    <div>
+      <label>Turno</label>
+      <div class="seg" role="group" aria-label="Turno">
+        <button type="button" data-t="Mañana" aria-pressed="false">Mañana</button>
+        <button type="button" data-t="Tarde" aria-pressed="false">Tarde</button>
+      </div>
+    </div>
+  </section>
+
+  <main id="botones" class="grid"><div class="cargando">Cargando vacunas…</div></main>
+
+  <section class="card tot">
+    <div><b id="totMio">0</b><span>mis dosis hoy</span></div>
+    <div><b id="totCentro">–</b><span>dosis del centro hoy</span></div>
+  </section>
+
+  <p class="ayuda">Pulsa la vacuna cada vez que la pongas. Si te equivocas, pulsa «−1». Se guarda solo al momento; si se corta la conexión, lo envía en cuanto vuelva (no cierres la página hasta ver «Guardado»).</p>
+</div>
+<div class="aviso" id="aviso" hidden></div>
+
+<script>
+(function(){
+  'use strict';
+  var COLORES = ['#0a6c6c','#2e5aa8','#8a3ea3','#b4461f','#3d7a1f','#9a6b00','#a1315a','#41606f'];
+  var store = {
+    get: function(k, d){ try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+    set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  };
+  function run(fn){
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(res, rej){
+      var r = google.script.run.withSuccessHandler(res).withFailureHandler(rej);
+      r[fn].apply(r, args);
+    });
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  var fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Madrid', year:'numeric', month:'2-digit', day:'2-digit'});
+  var fmtHora = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', hour:'2-digit', hour12:false});
+  function diaDe(ms){ return fmtDia.format(new Date(ms)); }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+
+  var $ = function(id){ return document.getElementById(id); };
+  var cfg = null, hoy = diaDe(Date.now());
+  var cola = store.get('vac_cola', []);
+  var prefs = store.get('vac_prefs', {});
+  var base = {}, baseCentro = {}, extra = {}, extraCentro = {}, baseOk = false;
+  var enviando = false, cargando = false, error = null, timerEnvio = null;
+
+  // ---------- Profesional y turno ----------
+  function prof(){
+    var sel = $('prof');
+    if (!sel.hidden && sel.value !== '__otro') return sel.value.trim();
+    return $('profTxt').value.trim();
+  }
+  function turno(){
+    var b = document.querySelector('.seg button[aria-pressed="true"]');
+    return b ? b.getAttribute('data-t') : 'Mañana';
+  }
+  function ponerTurno(t){
+    document.querySelectorAll('.seg button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === t)); });
+  }
+  function guardarPrefs(){
+    prefs = { prof: prof(), turno: turno(), dia: hoy };
+    store.set('vac_prefs', prefs);
+  }
+  function montarProfesionales(){
+    var sel = $('prof'), txt = $('profTxt');
+    if (cfg.profesionales.length){
+      sel.innerHTML = '<option value="">— Elige tu nombre —</option>' +
+        cfg.profesionales.map(function(n){ return '<option>' + esc(n) + '</option>'; }).join('') +
+        '<option value="__otro">Otro nombre…</option>';
+      sel.hidden = false;
+      if (prefs.prof && cfg.profesionales.indexOf(prefs.prof) >= 0) sel.value = prefs.prof;
+      else if (prefs.prof){ sel.value = '__otro'; txt.value = prefs.prof; }
+      txt.hidden = sel.value !== '__otro';
+    } else {
+      sel.hidden = true; txt.hidden = false; txt.value = prefs.prof || '';
+    }
+    var h = Number(fmtHora.format(new Date()));
+    ponerTurno(prefs.dia === hoy && prefs.turno ? prefs.turno : (h < 15 ? 'Mañana' : 'Tarde'));
+  }
+
+  // ---------- Recuentos ----------
+  function pendientes(filtroProf){
+    var r = {};
+    cola.forEach(function(e){
+      if (diaDe(e.momento) !== hoy) return;
+      if (filtroProf != null && e.profesional !== filtroProf) return;
+      r[e.vacuna] = (r[e.vacuna] || 0) + e.cambio;
+    });
+    return r;
+  }
+  function valor(v){ return (base[v] || 0) + (extra[v] || 0); }
+
+  function pintarBotones(){
+    $('botones').innerHTML = cfg.vacunas.map(function(v, i){
+      return '<div class="vac" style="--c:' + COLORES[i % COLORES.length] + '">' +
+        '<button type="button" class="mas" data-v="' + esc(v) + '" aria-label="Sumar una dosis de ' + esc(v) + '">' +
+          '<span class="nom">' + esc(v) + '</span><span class="num">0</span><span class="mas1">+1</span></button>' +
+        '<button type="button" class="menos" data-v="' + esc(v) + '" aria-label="Restar una dosis de ' + esc(v) + '">−1</button></div>';
+    }).join('') || '<div class="cargando">No hay vacunas activas. Revisa la hoja «Vacunas».</div>';
+  }
+  function pintarNumeros(){
+    var total = 0, totalC = 0;
+    document.querySelectorAll('.vac').forEach(function(el){
+      var v = el.querySelector('.mas').getAttribute('data-v');
+      var n = valor(v);
+      total += n;
+      el.querySelector('.num').textContent = baseOk ? n : '…';
+      el.querySelector('.menos').disabled = !baseOk || n <= 0;
+    });
+    Object.keys(baseCentro).concat(Object.keys(extraCentro)).filter(function(v, i, a){ return a.indexOf(v) === i; })
+      .forEach(function(v){ totalC += (baseCentro[v] || 0) + (extraCentro[v] || 0); });
+    $('totMio').textContent = baseOk ? total : '…';
+    $('totCentro').textContent = baseOk ? totalC : '–';
+  }
+  function pintarEstado(){
+    var el = $('estado'), n = cola.length;
+    if (enviando){ el.className = 'estado'; el.textContent = 'Enviando…'; }
+    else if (n && error){ el.className = 'estado warn'; el.textContent = n + ' sin enviar · reintentando'; }
+    else if (n){ el.className = 'estado warn'; el.textContent = n + ' pendiente' + (n > 1 ? 's' : ''); }
+    else if (error){ el.className = 'estado err'; el.textContent = 'Sin conexión'; }
+    else { el.className = 'estado ok'; el.textContent = '✓ Guardado'; }
+  }
+  var avisoT = null;
+  function aviso(t){
+    var a = $('aviso'); a.textContent = t; a.hidden = false;
+    clearTimeout(avisoT); avisoT = setTimeout(function(){ a.hidden = true; }, 2600);
+  }
+
+  // Pide al servidor lo ya guardado hoy. Mientras tanto no se envía nada, para no contar dos veces.
+  function cargarBase(){
+    if (cargando) return Promise.resolve();
+    var p = prof();
+    var espera = enviando ? new Promise(function(r){ var t = setInterval(function(){ if (!enviando){ clearInterval(t); r(); } }, 100); }) : Promise.resolve();
+    return espera.then(function(){
+      cargando = true;
+      return run('misHoy', p);
+    }).then(function(r){
+      hoy = r.hoy || hoy;
+      base = r.mias || {}; baseCentro = r.centro || {};
+      extra = pendientes(p); extraCentro = pendientes(null);
+      baseOk = true; error = null;
+    }).catch(function(){
+      error = true;
+      if (!baseOk){ base = {}; baseCentro = {}; extra = pendientes(p); extraCentro = pendientes(null); baseOk = true; }
+    }).then(function(){
+      cargando = false; pintarNumeros(); pintarEstado(); programarEnvio(0);
+    });
+  }
+
+  // ---------- Envío ----------
+  function programarEnvio(ms){ clearTimeout(timerEnvio); timerEnvio = setTimeout(enviar, ms); }
+  function enviar(){
+    if (enviando || cargando || !cola.length){ pintarEstado(); return; }
+    enviando = true; pintarEstado();
+    var lote = cola.slice(0, 200);
+    run('registrar', lote).then(function(r){
+      var hechos = {};
+      (r.guardados || []).concat(r.rechazados || []).forEach(function(id){ hechos[id] = true; });
+      cola = cola.filter(function(e){ return !hechos[e.id]; });
+      store.set('vac_cola', cola);
+      if (r.rechazados && r.rechazados.length) aviso('Alguna vacuna ya no existe en la configuración y no se guardó.');
+      error = null;
+    }).catch(function(){ error = true; }).then(function(){
+      enviando = false; pintarEstado();
+      if (cola.length) programarEnvio(error ? 15000 : 50);
+    });
+  }
+
+  function tocar(vac, cambio){
+    var p = prof();
+    if (!p){
+      $('quien').classList.add('falta');
+      aviso('Primero elige tu nombre');
+      (!$('prof').hidden ? $('prof') : $('profTxt')).focus();
+      return;
+    }
+    if (cambio < 0 && valor(vac) <= 0) return;
+    var e = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: vac, cambio: cambio };
+    cola.push(e); store.set('vac_cola', cola);
+    extra[vac] = (extra[vac] || 0) + cambio;
+    extraCentro[vac] = (extraCentro[vac] || 0) + cambio;
+    pintarNumeros(); pintarEstado();
+    if (navigator.vibrate) try { navigator.vibrate(cambio > 0 ? 25 : [15, 40, 15]); } catch(x){}
+    var b = document.querySelector('.mas[data-v="' + CSS.escape(vac) + '"]');
+    if (b){ b.classList.add('flash'); setTimeout(function(){ b.classList.remove('flash'); }, 160); }
+    if (cambio < 0) aviso('Restada una dosis de ' + vac);
+    programarEnvio(400);
+  }
+
+  // ---------- Eventos ----------
+  $('botones').addEventListener('click', function(ev){
+    var b = ev.target.closest('button'); if (!b || b.disabled) return;
+    tocar(b.getAttribute('data-v'), b.classList.contains('menos') ? -1 : 1);
+  });
+  $('prof').addEventListener('change', function(){
+    $('profTxt').hidden = this.value !== '__otro';
+    if (this.value === '__otro') $('profTxt').focus();
+    $('quien').classList.remove('falta'); guardarPrefs(); cargarBase();
+  });
+  var tTxt = null;
+  $('profTxt').addEventListener('input', function(){
+    $('quien').classList.remove('falta');
+    clearTimeout(tTxt); tTxt = setTimeout(function(){ guardarPrefs(); cargarBase(); }, 700);
+  });
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click', function(){ ponerTurno(b.getAttribute('data-t')); guardarPrefs(); });
+  });
+  window.addEventListener('online', function(){ programarEnvio(0); });
+  window.addEventListener('beforeunload', function(e){ if (cola.length){ e.preventDefault(); e.returnValue = ''; } });
+  setInterval(function(){
+    var d = diaDe(Date.now());
+    if (d !== hoy){ hoy = d; pintarFecha(); cargarBase(); return; }
+    if (cola.length) programarEnvio(0);
+  }, 15000);
+  setInterval(function(){ if (!cola.length && !document.hidden) cargarBase(); }, 180000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) cargarBase(); });
+
+  function pintarFecha(){
+    $('fecha').textContent = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', weekday:'long', day:'numeric', month:'long'}).format(new Date());
+  }
+
+  function pintarCentro(c){
+    $('centro').textContent = c || '';
+    document.title = 'Contador de vacunas' + (c ? ' · ' + c : '');
+  }
+
+  // ---------- Inicio ----------
+  pintarFecha(); pintarEstado();
+  function iniciar(){
+    run('datosContador').then(function(d){
+      cfg = d; hoy = d.hoy || hoy;
+      store.set('vac_cfg', d);
+      pintarCentro(d.centro);
+      montarProfesionales(); pintarBotones(); pintarNumeros();
+      return cargarBase();
+    }).catch(function(){
+      var guardada = store.get('vac_cfg', null);
+      error = true; pintarEstado();
+      if (guardada && !cfg){
+        cfg = guardada; pintarCentro(cfg.centro); montarProfesionales(); pintarBotones();
+        extra = pendientes(prof()); extraCentro = pendientes(null); baseOk = true; pintarNumeros();
+        aviso('Sin conexión: puedes seguir contando, se enviará después');
+      } else if (!cfg){
+        $('botones').innerHTML = '<div class="cargando">No se pudo conectar. Reintentando…</div>';
+      }
+      setTimeout(iniciar, 10000);
+    });
+  }
+  iniciar();
+})();
+</script>
+</body>
+</html>

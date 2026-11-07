@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contador flotante</title>
+<style id="estilos">
+  :root{ --bg:#f3f5f7; --card:#fff; --tx:#15212b; --mut:#5d6b78; --bd:#d9e0e6; --pri:#0a6c6c; --pri-tx:#fff; --ok:#1a7f37; --warn:#a85500; --err:#b42318; }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0e1317; --card:#172028; --tx:#e7edf2; --mut:#9aa8b4; --bd:#2a3743; --pri:#38b2ad; --pri-tx:#06201f; --ok:#4cc26a; --warn:#f0a050; --err:#f07a6e; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .conf{max-width:420px;margin:0 auto;padding:20px 16px 32px;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:1.25rem;margin:0}
+  .sub{color:var(--mut);font-size:.88rem;margin:4px 0 0}
+  label{display:block;font-size:.8rem;color:var(--mut);font-weight:600}
+  select,input{width:100%;margin-top:4px;font:inherit;padding:9px;border-radius:9px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+  .seg{display:flex;border:1px solid var(--bd);border-radius:9px;overflow:hidden;margin-top:4px}
+  .seg button{flex:1;font:inherit;border:0;padding:9px;background:var(--card);color:var(--tx);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--pri);color:var(--pri-tx);font-weight:700}
+  .flotar{font:inherit;font-weight:700;font-size:1.05rem;border:0;border-radius:12px;padding:14px;background:var(--pri);color:var(--pri-tx);cursor:pointer}
+  .flotar:disabled{opacity:.45;cursor:default}
+  .msg{font-size:.9rem;min-height:1.2em;margin:0}
+  .msg.err{color:var(--err)}
+  .caja{border:1px dashed var(--bd);border-radius:12px}
+  .caja .tit{font-size:.78rem;color:var(--mut);padding:8px 10px 0}
+  /* Ventanita */
+  .mini{display:flex;flex-direction:column;gap:6px;padding:8px}
+  .mcab{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:.8rem;color:var(--mut)}
+  .mcab b{color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{flex:none;width:11px;height:11px;border-radius:50%;background:var(--ok)}
+  .dot.warn{background:var(--warn)} .dot.err{background:var(--err)}
+  .fila{display:grid;grid-template-columns:1fr 46px;gap:5px}
+  .mas{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;padding:9px 12px;min-height:44px;border-radius:10px;background:var(--c);color:#fff;font-weight:700;user-select:none;-webkit-user-select:none}
+  .mas:active,.mas.flash{filter:brightness(1.25)}
+  .mas:focus-visible{outline:3px solid var(--tx);outline-offset:1px}
+  .mas .num{font-size:1.35rem;font-variant-numeric:tabular-nums}
+  .menos{font:inherit;font-weight:700;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--mut);cursor:pointer}
+  .menos:disabled{opacity:.35;cursor:default}
+  .mtot{display:flex;justify-content:space-between;align-items:baseline;font-size:.85rem;color:var(--mut);padding:2px 4px}
+  .mtot b{color:var(--tx);font-size:1.1rem;font-variant-numeric:tabular-nums}
+  .vacio{color:var(--mut);font-size:.85rem;padding:6px}
+  .mult{font-size:.75rem;color:var(--mut);text-align:center;font-variant-numeric:tabular-nums;min-height:1.1em}
+  .mult .ok{color:var(--ok);font-weight:700}
+</style>
+</head>
+<body>
+<section class="conf">
+  <div>
+    <h1>Contador flotante de vacunas</h1>
+    <p class="sub" id="centro" style="font-weight:700;color:var(--pri)"></p>
+    <p class="sub">Elige tu nombre y turno y pulsa el botón verde. Sale una ventanita que se queda siempre encima de las demás, también encima del programa de historia clínica.</p>
+  </div>
+  <div>
+    <label for="prof">Profesional</label>
+    <select id="prof" hidden></select>
+    <input id="profTxt" placeholder="Escribe tu nombre" autocomplete="name" hidden>
+  </div>
+  <div>
+    <label>Turno</label>
+    <div class="seg" role="group" aria-label="Turno">
+      <button type="button" data-t="Mañana" aria-pressed="false">Mañana</button>
+      <button type="button" data-t="Tarde" aria-pressed="false">Tarde</button>
+    </div>
+  </div>
+  <button class="flotar" id="flotar" type="button" disabled>Abrir contador flotante</button>
+  <p class="msg" id="msg" role="status">Conectando…</p>
+  <p class="sub">No cierres esta pestaña mientras trabajas; puedes minimizarla. Si cierras la ventanita, vuelve aquí y pulsa el botón otra vez.</p>
+  <div class="caja" id="sitio"><div class="tit">El contador (también se puede usar aquí):</div>
+    <div class="mini" id="mini">
+      <div class="mcab"><b id="mNom">Elige tu nombre</b><span class="dot" id="dot"></span></div>
+      <div id="filas"><div class="vacio">Cargando vacunas…</div></div>
+      <div class="mtot"><span>Mis dosis hoy</span><b id="mTot">–</b></div>
+      <div class="mult" id="mUlt"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  'use strict';
+  // >>> PEGA AQUÍ el enlace de TU aplicación web (el que termina en /exec) <<<
+  var URL_APP = 'PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB';
+
+  var COLORES = ['#0a6c6c','#2e5aa8','#8a3ea3','#b4461f','#3d7a1f','#9a6b00','#a1315a','#41606f'];
+  var store = {
+    get: function(k, d){ try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+    set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  };
+  var fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Madrid', year:'numeric', month:'2-digit', day:'2-digit'});
+  var fmtHora = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', hour:'2-digit', hour12:false});
+  function diaDe(ms){ return fmtDia.format(new Date(ms)); }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  var el = {};
+  ['prof','profTxt','flotar','msg','sitio','mini','mNom','dot','filas','mTot','mUlt'].forEach(function(id){ el[id] = document.getElementById(id); });
+
+  var cfg = store.get('wid_cfg', null);
+  var cola = store.get('wid_cola', []);
+  var prefs = store.get('wid_prefs', {});
+  var hoy = diaDe(Date.now());
+  var base = {}, baseProf = null, baseDia = null, ultSrv = 0;
+  var ultLocal = store.get('wid_ult', {}); // {profesional: {t, id}} última dosis sumada en este ordenador
+  var fmtHM = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', hour:'2-digit', minute:'2-digit', hour12:false});
+  var enviando = false, error = false, gen = 0, pip = null, conectado = false;
+
+  function api(params, body){
+    var url = URL_APP + (params ? '?' + new URLSearchParams(params).toString() : '');
+    var op = body ? { method: 'POST', body: JSON.stringify(body) } : {};
+    return fetch(url, op).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(j){
+      if (j && j.error) throw new Error(j.error);
+      return j;
+    });
+  }
+  function msg(t, err){ el.msg.textContent = t; el.msg.className = 'msg' + (err ? ' err' : ''); }
+
+  // ---------- Profesional y turno ----------
+  function prof(){
+    if (!el.prof.hidden && el.prof.value !== '__otro') return el.prof.value.trim();
+    return el.profTxt.value.trim();
+  }
+  function turno(){
+    var b = document.querySelector('.seg button[aria-pressed="true"]');
+    return b ? b.getAttribute('data-t') : 'Mañana';
+  }
+  function ponerTurno(t){
+    document.querySelectorAll('.seg button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === t)); });
+  }
+  function guardarPrefs(){ prefs = { prof: prof(), turno: turno(), dia: hoy }; store.set('wid_prefs', prefs); }
+  function montarProfesionales(){
+    var lista = cfg.profesionales || [];
+    if (lista.length){
+      el.prof.innerHTML = '<option value="">— Elige tu nombre —</option>' +
+        lista.map(function(n){ return '<option>' + esc(n) + '</option>'; }).join('') +
+        '<option value="__otro">Otro nombre…</option>';
+      el.prof.hidden = false;
+      if (prefs.prof && lista.indexOf(prefs.prof) >= 0) el.prof.value = prefs.prof;
+      else if (prefs.prof){ el.prof.value = '__otro'; el.profTxt.value = prefs.prof; }
+      el.profTxt.hidden = el.prof.value !== '__otro';
+    } else {
+      el.prof.hidden = true; el.profTxt.hidden = false; el.profTxt.value = prefs.prof || '';
+    }
+    var h = Number(fmtHora.format(new Date()));
+    ponerTurno(prefs.dia === hoy && prefs.turno ? prefs.turno : (h < 15 ? 'Mañana' : 'Tarde'));
+  }
+
+  // ---------- Recuentos ----------
+  function baseOk(){ var p = prof(); return !!p && baseProf === p && baseDia === hoy; }
+  function pendientes(p){
+    var r = {};
+    cola.forEach(function(e){
+      if (e.profesional !== p || diaDe(e.momento) !== hoy) return;
+      r[e.vacuna] = (r[e.vacuna] || 0) + e.cambio;
+    });
+    return r;
+  }
+  function valores(){
+    var p = prof(), pen = pendientes(p), b = baseOk() ? base : {}, r = {};
+    (cfg ? cfg.vacunas : []).forEach(function(v){ r[v] = (b[v] || 0) + (pen[v] || 0); });
+    return r;
+  }
+
+  function pintarFilas(){
+    var vs = cfg.vacunas || [];
+    el.filas.innerHTML = vs.length ? vs.map(function(v, i){
+      return '<div class="fila" style="--c:' + COLORES[i % COLORES.length] + '">' +
+        '<button type="button" class="mas" data-v="' + esc(v) + '" title="Sumar una dosis de ' + esc(v) + '"><span>' + esc(v) + '</span><span class="num">0</span></button>' +
+        '<button type="button" class="menos" data-v="' + esc(v) + '" title="Restar una dosis de ' + esc(v) + '">−1</button></div>';
+    }).join('') : '<div class="vacio">No hay vacunas activas. Revisa la hoja «Vacunas».</div>';
+  }
+  function pintar(){
+    var p = prof(), ok = baseOk() || !conectado, vals = valores(), total = 0;
+    el.mNom.textContent = p ? p + ' · ' + turno() : 'Elige tu nombre';
+    el.filas.querySelectorAll('.fila').forEach(function(f){
+      var v = f.querySelector('.mas').getAttribute('data-v'), n = vals[v] || 0;
+      total += n;
+      f.querySelector('.num').textContent = p ? (ok ? n : '…') : '–';
+      f.querySelector('.menos').disabled = !p || n <= 0;
+    });
+    el.mTot.textContent = p ? (ok ? total : '…') : '–';
+    var n = cola.length;
+    el.dot.className = 'dot' + (error ? ' err' : n ? ' warn' : '');
+    el.dot.title = error ? 'Sin conexión: ' + n + ' sin enviar, se reintentará' : n ? 'Enviando ' + n + '…' : 'Todo guardado';
+    pintarUlt();
+    el.flotar.disabled = !cfg || !p;
+    if (cfg && conectado && !p) msg('Elige tu nombre para empezar.');
+    else if (p && el.msg.textContent === 'Elige tu nombre para empezar.') msg('Listo. Pulsa «Abrir contador flotante».');
+  }
+
+  // Última vacuna: «Última vacuna 12:30 · hace 3 min ✓»
+  function pintarUlt(){
+    var p = prof();
+    if (!p){ el.mUlt.textContent = ''; return; }
+    var loc = ultLocal[p], t = baseOk() ? ultSrv : 0, pend = false;
+    if (loc && diaDe(loc.t) === hoy && loc.t >= t){
+      t = loc.t;
+      pend = cola.some(function(e){ return e.id === loc.id; });
+    }
+    if (!t || diaDe(t) !== hoy){ el.mUlt.textContent = (baseOk() || !conectado) ? 'Ninguna vacuna hoy todavía' : ''; return; }
+    var min = Math.floor((Date.now() - t) / 60000), hace;
+    if (min < 1) hace = 'ahora mismo';
+    else if (min < 60) hace = 'hace ' + min + ' min';
+    else hace = 'hace ' + Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + (min % 60) + ' min' : '');
+    el.mUlt.innerHTML = 'Última vacuna ' + fmtHM.format(new Date(t)) + ' · ' + hace + ' ' +
+      (pend ? '<span title="Enviando">⏳</span>' : '<span class="ok" title="Guardada en la hoja">✓</span>');
+  }
+
+  // ---------- Servidor ----------
+  function cargarBase(){
+    var p = prof(), g = gen;
+    if (!p || !cfg) return;
+    if (cola.some(function(e){ return e.profesional === p; })) return; // primero se envía lo pendiente
+    api({ api: 'hoy', profesional: p }).then(function(r){
+      if (g !== gen || p !== prof()) return;
+      hoy = r.hoy || hoy; base = r.mias || {}; ultSrv = Number(r.ultima) || 0; baseProf = p; baseDia = hoy; error = false;
+    }).catch(function(){ error = true; }).then(pintar);
+  }
+  function enviar(){
+    if (enviando || !cola.length) return;
+    enviando = true; pintar();
+    var lote = cola.slice(0, 200);
+    api(null, { accion: 'registrar', lista: lote }).then(function(r){
+      var guard = {}, hechos = {};
+      (r.guardados || []).forEach(function(id){ guard[id] = hechos[id] = true; });
+      (r.rechazados || []).forEach(function(id){ hechos[id] = true; });
+      lote.forEach(function(e){
+        if (guard[e.id] && e.profesional === baseProf && diaDe(e.momento) === baseDia) base[e.vacuna] = (base[e.vacuna] || 0) + e.cambio;
+      });
+      cola = cola.filter(function(e){ return !hechos[e.id]; });
+      store.set('wid_cola', cola);
+      gen++; error = false;
+      if (r.rechazados && r.rechazados.length) msg('Alguna vacuna ya no existe en la configuración y no se guardó.', true);
+    }).catch(function(){ error = true; }).then(function(){
+      enviando = false; pintar();
+      if (cola.length){ if (error) setTimeout(enviar, 15000); else enviar(); }
+      else if (!baseOk()) cargarBase();
+    });
+  }
+
+  function tocar(v, c){
+    var p = prof();
+    if (!p){ msg('Primero elige tu nombre.', true); return; }
+    if (c < 0 && (valores()[v] || 0) <= 0) return;
+    var ev = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: v, cambio: c };
+    cola.push(ev);
+    store.set('wid_cola', cola);
+    if (c > 0){ ultLocal[p] = { t: ev.momento, id: ev.id }; store.set('wid_ult', ultLocal); }
+    pintar();
+    var b = el.filas.querySelector('.mas[data-v="' + CSS.escape(v) + '"]');
+    if (b){ b.classList.add('flash'); setTimeout(function(){ b.classList.remove('flash'); }, 160); }
+    enviar();
+  }
+
+  // ---------- Ventana flotante ----------
+  function flotar(){
+    if (pip){ pip.focus(); return; }
+    if (!('documentPictureInPicture' in window)){
+      msg('Este navegador no permite ventanas flotantes. Abre este archivo con Google Chrome o Microsoft Edge actualizados. Mientras, puedes usar el contador de abajo.', true);
+      return;
+    }
+    var n = (cfg.vacunas || []).length;
+    window.documentPictureInPicture.requestWindow({ width: 250, height: 100 + n * 50 }).then(function(w){
+      pip = w;
+      var st = w.document.createElement('style');
+      st.textContent = document.getElementById('estilos').textContent;
+      w.document.head.appendChild(st);
+      w.document.title = 'Vacunas';
+      w.document.body.appendChild(el.mini);
+      w.addEventListener('pagehide', function(){ el.sitio.appendChild(el.mini); pip = null; pintar(); });
+      msg('Ventanita abierta. Puedes moverla y dejarla en una esquina.');
+      pintar();
+    }).catch(function(e){ msg('No se pudo abrir la ventanita: ' + (e && e.message ? e.message : e), true); });
+  }
+
+  // ---------- Eventos ----------
+  el.mini.addEventListener('click', function(ev){
+    var b = ev.target.closest('button'); if (!b || b.disabled) return;
+    tocar(b.getAttribute('data-v'), b.classList.contains('menos') ? -1 : 1);
+  });
+  el.prof.addEventListener('change', function(){
+    el.profTxt.hidden = this.value !== '__otro';
+    if (this.value === '__otro') el.profTxt.focus();
+    guardarPrefs(); pintar(); cargarBase();
+  });
+  var tTxt = null;
+  el.profTxt.addEventListener('input', function(){
+    pintar(); clearTimeout(tTxt); tTxt = setTimeout(function(){ guardarPrefs(); cargarBase(); }, 700);
+  });
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click', function(){ ponerTurno(b.getAttribute('data-t')); guardarPrefs(); pintar(); });
+  });
+  el.flotar.addEventListener('click', flotar);
+  window.addEventListener('online', enviar);
+  window.addEventListener('beforeunload', function(e){ if (cola.length){ e.preventDefault(); e.returnValue = ''; } });
+  setInterval(function(){
+    var d = diaDe(Date.now());
+    if (d !== hoy){ hoy = d; pintar(); cargarBase(); }
+    if (cola.length) enviar();
+  }, 15000);
+  setInterval(function(){ if (!cola.length) cargarBase(); }, 120000);
+  setInterval(pintarUlt, 20000);
+
+  // ---------- Inicio ----------
+  function pintarCentro(){ var c = (cfg && cfg.centro) || ''; document.getElementById('centro').textContent = c; document.title = 'Contador flotante' + (c ? ' · ' + c : ''); }
+  function iniciar(){
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(URL_APP)){
+      msg('Falta configurar este archivo: ábrelo con el Bloc de notas y pega el enlace de tu aplicación web (el que termina en /exec) donde pone PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB.', true);
+      return;
+    }
+    api({ api: 'datos' }).then(function(d){
+      var primera = !cfg;
+      cfg = { centro: d.centro || '', vacunas: d.vacunas || [], profesionales: d.profesionales || [] };
+      pintarCentro();
+      hoy = d.hoy || hoy; conectado = true; error = false;
+      store.set('wid_cfg', cfg);
+      if (primera || !el.filas.querySelector('.fila')) { montarProfesionales(); pintarFilas(); }
+      msg(prof() ? 'Listo. Pulsa «Abrir contador flotante».' : 'Elige tu nombre para empezar.');
+      pintar(); enviar(); cargarBase();
+    }).catch(function(){
+      error = true;
+      if (cfg && !el.filas.querySelector('.fila')){ montarProfesionales(); pintarFilas(); }
+      msg(cfg ? 'Sin conexión: puedes seguir contando, se enviará después.' : 'No se pudo conectar con la hoja. Reintentando…', !cfg);
+      pintar();
+      setTimeout(iniciar, 10000);
+    });
+  }
+  if (cfg){ pintarCentro(); montarProfesionales(); pintarFilas(); pintar(); }
+  iniciar();
+})();
+</script>
+</body>
+</html>
