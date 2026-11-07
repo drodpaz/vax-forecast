@@ -1,4 +1,5 @@
 # VaxForecast — Contador de vacinas
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24044549.svg)](https://doi.org/10.5281/zenodo.24044549)
 
 *[Leer en castellano](README.md)*
 
