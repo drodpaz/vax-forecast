@@ -1,0 +1,22 @@
+{
+  "title": "VaxForecast: contador de vacunas para centros de salud",
+  "upload_type": "software",
+  "description": "<p>Contador de dosis para campañas de vacunación en centros de salud, hecho con Google Sheets y Google Apps Script. Cada profesional registra con un toque cada dosis que pone (también sin conexión) y un panel protegido con PIN compara las dosis puestas con las dosis necesarias por semana, la capacidad del centro (profesionales × huecos × días) y el stock de cada vacuna (entradas, mermas y recuentos), con avisos de stock mínimo y semanas de cobertura.</p><p>Cada centro instala su propia copia en su Google Drive: los datos no pasan por la persona autora y no se guarda ningún dato de pacientes. Interfaz en castellano; documentación en castellano y gallego.</p>",
+  "creators": [
+    { "name": "Rodríguez Paz, Domingo Damián" }
+  ],
+  "license": "cc-by-nc-4.0",
+  "access_right": "open",
+  "language": "spa",
+  "keywords": [
+    "vacunación",
+    "vacinación",
+    "vaccination",
+    "atención primaria",
+    "enfermería",
+    "nursing",
+    "stock de vacunas",
+    "Google Apps Script",
+    "Google Sheets"
+  ]
+}

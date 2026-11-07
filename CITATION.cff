@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "Si usas este software, cítalo con estos datos."
+type: software
+title: "VaxForecast: contador de vacunas para centros de salud"
+authors:
+  - family-names: "Rodríguez Paz"
+    given-names: "Domingo Damián"
+version: 1.0.0
+date-released: 2026-11-07
+license: CC-BY-NC-4.0
+repository-code: "https://github.com/drodpaz/vax-forecast"
+keywords:
+  - vacunación
+  - enfermería
+  - atención primaria
+  - Google Apps Script
