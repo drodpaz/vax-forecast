@@ -31,12 +31,17 @@ Contador de dosis para campañas de vacunación en centros de salud, hecho con *
 - Dosis puestas por día, semana, vacuna, turno y profesional.
 - Dosis necesarias por semana frente a dosis puestas, y capacidad (enfermeras/os × huecos × días).
 - **Stock**: lo que queda de cada vacuna, consumo medio semanal, semanas que quedan y avisos de stock mínimo.
+- **Previsión de la campaña**: cobertura por grupo de población, fecha estimada para llegar al objetivo, ritmo necesario, **pedido sugerido** para el próximo reparto y dosis que sobrarían o faltarían al final.
+- **Resumen semanal por correo** (opcional), cada lunes a las 8:00.
+- **Aviso de pedido por Telegram o correo** (opcional): el día que vence el plazo del pedido, te dice qué pedir.
 - Configuración del centro: nombre, capacidad, vacunas, profesionales y PIN.
 
 ## Privacidad
 
 - **Cada centro tiene su propia copia**: la hoja de cálculo y el script viven en el Google Drive de quien lo instala. Los datos no pasan nunca por la persona autora ni por GitHub; este repositorio solo contiene el código.
-- **No se guardan datos de pacientes.** Cada toque guarda únicamente: momento, turno, nombre del profesional, vacuna y +1/−1. El stock guarda vacuna, tipo de movimiento, cantidad y una nota opcional (no escribas ahí datos de pacientes).
+- **No se guardan datos de pacientes.** Cada toque guarda únicamente: momento, turno, nombre del profesional, vacuna y +1/−1. El stock guarda vacuna, tipo de movimiento, cantidad y una nota opcional (no escribas ahí datos de pacientes). La previsión solo usa cifras agregadas: población y vacunados por grupo.
+- El resumen semanal se envía desde la cuenta de Google de quien instala la aplicación, solo a los correos que pongas.
+- Si conectas Telegram, el aviso de pedido (nombre del centro, vacunas y cantidades, sin datos de pacientes) pasa por los servidores de Telegram. El token del bot se guarda en las propiedades del script, no en la hoja.
 - La aplicación se ejecuta con la cuenta de quien la instala y solo accede a esa hoja.
 - El panel está protegido con un PIN. El enlace del contador lo puede abrir quien lo tenga: compártelo solo con el equipo.
 - Puedes revisar, corregir o borrar cualquier dato directamente en la hoja.
@@ -66,14 +71,17 @@ Necesitas una cuenta de Google (sirve una de Gmail).
    - las vacunas que se ponen,
    - los nombres de los profesionales.
 8. Después, en **Configuración del centro**, completa: enfermeras/os que vacunan, huecos por día, días de vacunación, dosis necesarias por semana y stock mínimo de cada vacuna.
+9. Para la previsión, en **Campaña y previsión**: carga una plantilla (o crea los grupos) y pon la **población** de cada grupo.
 
 > **Zona horaria.** Está puesta para la España peninsular (`Europe/Madrid`). En Canarias, cambia `Europe/Madrid` por `Atlantic/Canary` en `Code.gs`, `Contador.html`, `Panel.html` y en el contador flotante.
 
 ### Contador flotante (opcional)
 
-1. Descarga [`widget/contador-flotante.html`](widget/contador-flotante.html) en el ordenador.
-2. Ábrelo con el Bloc de notas, busca `PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB` y pon en su lugar la URL de tu aplicación web (la que termina en `/exec`). Guarda.
-3. Ábrelo con **Google Chrome** o **Microsoft Edge** (actualizados), elige tu nombre y pulsa **Abrir contador flotante**.
+1. Descarga [`widget/contador-flotante.html`](widget/contador-flotante.html) y guárdalo en el escritorio de cada ordenador de vacunación.
+2. Ábrelo con **Google Chrome** o **Microsoft Edge** (actualizados). La primera vez pide el **enlace del contador** (la URL que termina en `/exec`): pégalo y pulsa **Guardar y conectar**. El navegador lo recuerda.
+3. Elige tu nombre y turno y pulsa **Abrir contador flotante**.
+
+Si prefieres que no pregunte nada (por ejemplo, para repartirlo en un USB a todo el equipo), ábrelo con el Bloc de notas, pon tu enlace en lugar de `PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB` y guarda.
 
 ## Uso
 
@@ -108,15 +116,58 @@ Cómo se calcula el stock de cada vacuna:
 - Consejo: empieza con un **Recuento** de cada vacuna y repítelo de vez en cuando (por ejemplo, cada viernes) para corregir los descuadres.
 - Para corregir o borrar un movimiento, edítalo en la pestaña **Stock** de la hoja. Si escribes una fila a mano solo con la *Fecha*, se toma como el comienzo de ese día.
 
+### Previsión de la campaña
+
+**1. Configura la campaña** (sección *Campaña y previsión* del panel):
+- Carga una plantilla. Viene la de **Galicia 2026 (gripe)**, hecha a partir de la *Instrución da campaña 2026 de vacinación fronte á gripe e á covid-19* del SERGAS: grupos, fechas de inicio escalonadas, vacuna de cada grupo, objetivos de cobertura y días de reparto. También puedes crear los grupos a mano.
+- Pon la **población de cada grupo** (de vuestros cupos o del informe de coberturas). Es lo único que hay que meter a mano.
+
+| Grupo (plantilla Galicia 2026) | Vacuna | Desde | Objetivo |
+|---|---|---|---|
+| Infantil 6–23 meses | Vaxigrip | 13/10 | 60 % |
+| Infantil 2–11 años | Fluenz | 13/10 | 60 % |
+| Personal sanitario | Vaxigrip | 13/10 | 60 % |
+| 70 años o más | Efluelda | 19/10 | 75 % |
+| Embarazadas y puerperio | Vaxigrip | 2/11 | 60 % |
+| Riesgo y otros 12–59 años | Vaxigrip | 2/11 | — |
+| 65–69 años | Efluelda | 9/11 | 75 % |
+| 60–64 años | Vaxigrip | 9/11 | 75 % |
+
+Días de reparto: del 13/10 al 15/11, martes, miércoles y viernes; del 16/11 al 31/12, martes y jueves. El pedido se hace en RVACU antes de las 14:00, dos días laborables antes del reparto. Revisa siempre que coincide con la instrución vigente: se puede cambiar todo en el panel y en las pestañas *Grupos* y *Repartos*.
+
+Si una vacuna se pide con **otro calendario** (por ejemplo, la COVID), añade una fila en la pestaña *Repartos* con su nombre en la columna **Vacunas**. Ejemplo: desde 13/10/2026 hasta 31/12/2026, días `mar, jue`, antelación `0` (se pide el mismo día del reparto), hora límite `12:00`, vacunas `COVID-19`. Las filas con la columna *Vacunas* vacía valen para todas las demás.
+
+**2. Cómo se calcula** (son estimaciones):
+- **Vacunados por grupo** = último **dato oficial** del grupo (si lo metes) + dosis del contador desde entonces. Cada dosis cuenta para los grupos que usan esa vacuna y ya han empezado; si son varios (por ejemplo, Vaxigrip), se reparte según la población diana de cada uno. Así el contador de las enfermeras no cambia.
+- **Dato oficial**: cuando tengas el informe de coberturas, mete la **cobertura (%)** o los vacunados de cada grupo y la fecha hasta la que llega el informe. Corrige la estimación igual que un recuento corrige el stock, y el contador suma las dosis posteriores a esa fecha. Sirve también para empezar a usar la app a mitad de campaña.
+- **Ritmo** = dosis de los últimos 14 días ÷ días laborables. **Llega al objetivo** = fecha estimada si se mantiene el ritmo. **Necesario / día** = lo que falta ÷ días laborables que quedan.
+- **Pedido sugerido** = consumo previsto hasta el reparto siguiente + stock mínimo − stock actual, sin pasar de lo que falta para acabar la campaña. El consumo previsto suma el ritmo de cada grupo hasta que llega a su objetivo y los grupos que todavía no han empezado. Si ya tienes un pedido en camino, réstalo.
+- **Al final de la campaña**: dosis que sobrarían o faltarían. Avisa si lo que sobra pasa del 5 % de lo recibido.
+- No tiene en cuenta los festivos.
+
+**3. Resumen semanal por correo**: escribe el correo, guarda y pulsa *Activar el envío de los lunes*. Llega a las 8:00 con las dosis de la semana anterior, la cobertura por grupo, el stock y el pedido sugerido. No incluye datos de pacientes.
+
+**4. Aviso de pedido por Telegram (o correo)**: el día en que vence el plazo del pedido del próximo reparto, a la hora que elijas (de 6:00 a 13:00), te llega un mensaje con lo que hay que pedir de cada vacuna, el stock y cuándo llega. Si no hace falta pedir nada, no envía nada, y avisa una sola vez por reparto.
+
+Para conectarlo a Telegram (en *Campaña y previsión › Aviso de pedido*):
+1. En Telegram, busca **@BotFather** (el oficial) y escríbele `/newbot`. Ponle un nombre y un usuario que termine en `bot`.
+2. Copia el **token** que te da (algo como `123456789:AAF…`), pégalo en el panel y pulsa **Guardar avisos**. No lo compartas.
+3. Abre tu bot en Telegram y pulsa **Iniciar** (o escribe `/start`).
+4. En el panel, pulsa **Conectar mi Telegram**: te llegará un mensaje de confirmación.
+5. Marca **Avisarme los días que toque pedir**, elige la hora y guarda. Con **Enviar aviso de prueba** ves cómo queda.
+
+Para avisar a varias personas, crea un grupo en Telegram, añade el bot, escribe algo en el grupo y pulsa **Conectar** otra vez.
+
 ## Actualizar a una versión nueva sin cambiar la URL
 
 1. En la hoja: **Extensiones › Apps Script**.
 2. Sustituye el contenido de `Code.gs`, `Contador` y `Panel` por el de la versión nueva y guarda.
-3. **Implementar › Gestionar implementaciones ›** lápiz (editar) **› Versión: Nueva versión › Implementar**.
+3. **Si la versión nueva pide permisos nuevos** (la v1.1 los pide, para enviar correos, programar los avisos y conectar con Telegram): elige la función **prepararHojas**, pulsa **Ejecutar** y acepta los permisos. **Si no lo haces, el contador y el panel dejan de funcionar** hasta que los aceptes.
+4. **Implementar › Gestionar implementaciones ›** lápiz (editar) **› Versión: Nueva versión › Implementar**.
 
 Así la URL no cambia y el equipo no tiene que hacer nada. **No uses «Nueva implementación»**: crearía una URL distinta.
 
-Los datos no se pierden: al abrir el contador o el panel, la hoja se pone al día sola (crea la pestaña *Stock*, añade la columna *Stock mínimo* a *Vacunas* y el parámetro *Nombre del centro* a *Configuración*). Si quieres, puedes forzarlo ejecutando **prepararHojas** una vez. Si el panel ya tenía un PIN distinto de 1234, no aparece el asistente: pon el nombre del centro en **Configuración del centro**.
+Los datos no se pierden: al abrir el contador o el panel, la hoja se pone al día sola. Crea las pestañas que falten (*Stock*, *Grupos*, *Coberturas*, *Repartos*), añade la columna *Stock mínimo* a *Vacunas* y los parámetros nuevos a *Configuración*. Si el panel ya tenía un PIN distinto de 1234, no aparece el asistente: pon el nombre del centro en **Configuración del centro**.
 
 ## Hojas que crea
 
@@ -127,6 +178,9 @@ Los datos no se pierden: al abrir el contador o el panel, la hoja se pone al dí
 | Vacunas | Vacuna, dosis necesarias por semana, activa, stock mínimo |
 | Profesionales | Nombres que salen en el contador |
 | Stock | Entradas, mermas y recuentos |
+| Grupos | Grupos de población: vacunas, fecha de inicio, población, objetivo |
+| Coberturas | Datos oficiales de vacunados por grupo (opcional) |
+| Repartos | Días de reparto, antelación y hora límite del pedido; opcionalmente, solo para algunas vacunas |
 
 ## Estructura del repositorio
 

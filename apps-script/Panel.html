@@ -9,12 +9,12 @@
   :root{
     --bg:#f3f5f7; --card:#fff; --tx:#15212b; --mut:#5d6b78; --bd:#d9e0e6; --soft:#eef2f5;
     --pri:#0a6c6c; --pri-tx:#fff; --ok:#1a7f37; --warn:#a85500; --err:#b42318; --ref:#15212b;
-    --err-bg:#fdecea; --warn-bg:#fff2e0;
+    --err-bg:#fdecea; --warn-bg:#fff2e0; --ok-bg:#e8f5ec;
   }
   @media (prefers-color-scheme: dark){
     :root{ --bg:#0e1317; --card:#172028; --tx:#e7edf2; --mut:#9aa8b4; --bd:#2a3743; --soft:#1e2933;
            --pri:#38b2ad; --pri-tx:#06201f; --ok:#4cc26a; --warn:#f0a050; --err:#f07a6e; --ref:#e7edf2;
-           --err-bg:#3b1915; --warn-bg:#382711; }
+           --err-bg:#3b1915; --warn-bg:#382711; --ok-bg:#15301f; }
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -84,6 +84,14 @@
   .ley .bajo{background:var(--err-bg);box-shadow:inset 0 0 0 2px var(--err)}
   .ley .pocas{background:var(--warn-bg);box-shadow:inset 0 0 0 2px var(--warn)}
   td.l,th.l{text-align:left} td.txt{white-space:normal;min-width:160px;text-align:left}
+  h3{font-size:.92rem;margin:16px 0 8px}
+  tr.okf td{background:var(--ok-bg)} tr.okf td:first-child{box-shadow:inset 4px 0 var(--ok)}
+  tr.gris td{color:var(--mut)}
+  .ley .okf{background:var(--ok-bg);box-shadow:inset 0 0 0 2px var(--ok)}
+  .ley .gris{background:var(--soft);box-shadow:inset 0 0 0 2px var(--bd)}
+  .aviso-ped{border:1px solid var(--bd);border-left:4px solid var(--pri);border-radius:10px;padding:10px 12px;background:var(--bg);margin:0 0 10px}
+  .vtab input[type=date]{min-width:140px}
+  .vtab .gV{min-width:110px} .vtab .gN{min-width:170px} .vtab .gP,.vtab .gO{width:90px}
   @media (max-width:520px){
     .sem{grid-template-columns:72px 1fr 44px} .kpi .v{font-size:1.4rem}
     .seg{display:flex} .seg button{flex:1;padding:9px 6px}
@@ -148,6 +156,35 @@
 
     <section class="kpis" id="kpis"></section>
 
+    <section class="card" id="cPrev">
+      <h2>Previsión de la campaña</h2>
+      <p class="sub" id="prevTxt">Cargando previsión…</p>
+      <div id="prevCuerpo" hidden>
+        <h3>Cobertura por grupo</h3>
+        <div class="tw"><table id="tGru"></table></div>
+        <div class="ley">
+          <span><i class="okf"></i>Objetivo alcanzado</span>
+          <span><i class="pocas"></i>Al ritmo actual no llega antes del fin de campaña</span>
+          <span><i class="gris"></i>Todavía no ha empezado</span>
+        </div>
+        <p class="nota">Vacunados = último dato oficial del grupo + dosis del contador desde entonces. Cada dosis cuenta para los grupos que usan esa vacuna y ya empezaron; si son varios, se reparte según su población diana. Es una estimación: mete el dato oficial cuando lo tengas (en %, se calcula con la población del grupo). «Datos hasta el día» es el último día que incluye el informe; las dosis del contador posteriores se suman.</p>
+        <form id="fCob" class="stkf" novalidate>
+          <div><label for="oGru">Grupo</label><select id="oGru"></select></div>
+          <div><label for="oTipo">Dato en</label><select id="oTipo"><option value="pct">Cobertura (%)</option><option value="num">Vacunados (número)</option></select></div>
+          <div><label for="oNum" id="oNumL">Cobertura oficial (%)</label><input type="text" id="oNum" inputmode="decimal" autocomplete="off" style="width:110px" placeholder="p. ej. 52,5"></div>
+          <div><label for="oFecha">Datos hasta el día (incluido)</label><input type="date" id="oFecha"></div>
+          <div class="nota-in"><label for="oNota">Nota (opcional)</label><input type="text" id="oNota" maxlength="150" placeholder="Informe de coberturas"></div>
+          <button class="btn" id="oGuardar">Guardar dato oficial</button>
+        </form>
+        <div class="msg" id="oMsg" role="status"></div>
+
+        <h3>Pedido sugerido</h3>
+        <div class="aviso-ped" id="pedTxt"></div>
+        <div class="tw"><table id="tPed"></table></div>
+        <p class="nota">Pedido = consumo previsto hasta el reparto siguiente + stock mínimo − stock actual, sin pasar de lo que falta para acabar la campaña. Consumo previsto = ritmo actual de cada grupo hasta su objetivo + los grupos que aún no empezaron. Si ya tienes un pedido en camino, réstalo. No tiene en cuenta los festivos.</p>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Dosis necesarias y puestas, por vacuna</h2>
       <div class="tw"><table id="tVac"></table></div>
@@ -202,6 +239,67 @@
     <section class="card" id="cProf">
       <h2>Por profesional</h2>
       <div class="tw"><table id="tProf"></table></div>
+    </section>
+
+    <section class="card">
+      <details id="dCam">
+        <summary>Campaña y previsión</summary>
+        <p class="sub" style="margin-top:10px">Grupos de población de la campaña. Lo único que hay que poner a mano es la <b>población</b> de cada grupo (de vuestros cupos o del informe de coberturas). Puedes empezar desde una plantilla.</p>
+        <div class="cfg">
+          <div><label for="kIni">Inicio de campaña</label><input type="date" id="kIni"></div>
+          <div><label for="kFin">Fin de campaña</label><input type="date" id="kFin"></div>
+          <div><label for="kPla">Plantilla</label><select id="kPla"></select></div>
+          <div><button class="btn" id="kCargar" type="button">Cargar plantilla</button></div>
+        </div>
+        <div class="tw"><table class="vtab"><thead><tr><th>Grupo</th><th>Población</th><th>Objetivo %</th><th>Desde</th><th>Vacunas</th><th>Activo</th><th></th></tr></thead><tbody id="kGru"></tbody></table></div>
+        <button class="btn" id="kAdd" type="button" style="margin-top:8px">Añadir grupo</button>
+        <p class="nota">Vacunas: los nombres tal como están en la lista de vacunas, separados por comas. Objetivo vacío o 0 = grupo sin objetivo de cobertura.</p>
+
+        <h2 style="margin-top:16px">Días de reparto</h2>
+        <div id="kRep" class="sub"></div>
+
+        <h2 style="margin-top:16px">Resumen semanal por correo</h2>
+        <div class="cfg">
+          <div style="flex:1 1 280px"><label for="kCor">Correo(s), separados por comas</label><input type="text" id="kCor" style="width:100%" autocomplete="email" placeholder="coordinacion@ejemplo.org"></div>
+        </div>
+        <button class="btn pri" id="kGuardar" type="button">Guardar campaña</button>
+        <div class="msg" id="kMsg" role="status"></div>
+        <div class="cfg" style="align-items:center">
+          <span class="sub" id="kResEst"></span>
+          <button class="btn" id="kRes" type="button"></button>
+          <button class="btn" id="kProbar" type="button">Enviar uno de prueba ahora</button>
+        </div>
+        <div class="msg" id="kMsg2" role="status"></div>
+
+        <h2 style="margin-top:18px">Aviso de pedido (Telegram o correo)</h2>
+        <p class="sub">El día en que vence el plazo del pedido del próximo reparto, te avisa a la hora que elijas con lo que hay que pedir de cada vacuna. Si no hace falta pedir nada, no envía nada.</p>
+        <details style="margin:8px 0">
+          <summary style="font-weight:600;font-size:.9rem">Cómo crear tu bot de Telegram (2 minutos)</summary>
+          <ol class="sub" style="margin:8px 0 0;padding-left:20px">
+            <li>En Telegram, busca <b>@BotFather</b> (el oficial, con la marca azul) y escríbele <b>/newbot</b>.</li>
+            <li>Ponle un nombre (p. ej. «Vacunas de mi centro») y un usuario que termine en <i>bot</i>.</li>
+            <li>BotFather te da un <b>token</b> (algo como <i>123456789:AAF…</i>). Cópialo y pégalo aquí abajo. No lo compartas con nadie.</li>
+            <li>Pulsa <b>Guardar avisos</b>, abre tu bot en Telegram y pulsa <b>Iniciar</b> (o escribe /start).</li>
+            <li>Vuelve aquí y pulsa <b>Conectar mi Telegram</b>. Te llegará un mensaje de confirmación.</li>
+          </ol>
+          <p class="sub" style="margin:6px 0 0">Para avisar a varias personas: crea un grupo en Telegram, añade el bot, escribe algo en el grupo y pulsa «Conectar».</p>
+        </details>
+        <div class="cfg" style="align-items:end">
+          <div style="flex:1 1 280px"><label for="aTok">Token del bot</label><input type="password" id="aTok" style="width:100%" autocomplete="off" spellcheck="false"></div>
+          <div><button class="btn" id="aCon" type="button">Conectar mi Telegram</button></div>
+        </div>
+        <p class="sub" id="aTgEst"></p>
+        <div class="cfg" style="align-items:center">
+          <label style="display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--tx)"><input type="checkbox" id="aAct" style="margin:0">Avisarme los días que toque pedir</label>
+          <div><label for="aHora">A las</label><select id="aHora"></select></div>
+          <label style="display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--tx)"><input type="checkbox" id="aCorreo" style="margin:0">También por correo</label>
+        </div>
+        <div class="cfg">
+          <button class="btn pri" id="aGuardar" type="button">Guardar avisos</button>
+          <button class="btn" id="aProbar" type="button">Enviar aviso de prueba</button>
+        </div>
+        <div class="msg" id="aMsg" role="status"></div>
+      </details>
     </section>
 
     <section class="card">
@@ -349,6 +447,7 @@
     var r = rango();
     $('cargaTxt').textContent = 'Cargando…'; $('actualizar').disabled = true;
     cargarStock();
+    cargarPrevision();
     return run('resumen', PIN, r[0], r[1]).then(function(d){
       datos = d; pintar(); $('cargaTxt').textContent = '';
     }).catch(function(e){
@@ -556,6 +655,244 @@
       if (/PIN incorrecto/i.test(x)) return volverPin(x);
       m.className = 'msg err'; m.textContent = 'No se guardó: ' + x;
     }).then(function(){ b.disabled = false; });
+  });
+
+  // ---------- Previsión de la campaña ----------
+  var prev = null, camPintada = false;
+  function siPin(e, otro){ var x = errTxt(e); if (/PIN incorrecto/i.test(x)) { volverPin(x); return true; } if (otro) otro(x); return false; }
+  function fecha(f){ return f ? diaCorto(f) : '—'; }
+
+  function cargarPrevision(){
+    return run('prevision', PIN).then(function(p){ prev = p; pintarPrevision(); pintarCampana(); })
+      .catch(function(e){ siPin(e, function(m){ $('prevTxt').textContent = 'No se pudo cargar la previsión: ' + m; }); });
+  }
+
+  function pintarPrevision(){
+    var p = prev, c = p.campana;
+    $('prevCuerpo').hidden = !p.configurada;
+    if (!p.configurada){
+      $('prevTxt').innerHTML = 'Todavía no hay grupos de población. Abre <b>Campaña y previsión</b> (más abajo), carga una plantilla y pon la población de cada grupo.';
+      return;
+    }
+    $('prevTxt').textContent = (c.inicio && c.fin ? 'Campaña del ' + fecha(c.inicio) + ' al ' + fecha(c.fin) : 'Pon las fechas de la campaña en «Campaña y previsión»') +
+      (c.fin && c.labRestantes ? ' · quedan ' + c.labRestantes + ' días laborables' : c.fin && c.fin < p.hoy ? ' · campaña terminada' : '') + '.';
+
+    var faltaPob = p.grupos.some(function(g){ return !g.poblacion; });
+    $('tGru').innerHTML = '<thead><tr><th>Grupo</th><th>Empieza</th><th>Población</th><th>Vacunados</th><th>Cobertura</th><th>Objetivo</th><th>Faltan</th><th>Ritmo / día</th><th>Necesario / día</th><th class="l">Llega al objetivo</th></tr></thead><tbody>' +
+      p.grupos.map(function(g){
+        var cl = g.estado === 'ok' ? 'okf' : g.estado === 'riesgo' ? 'pocas' : g.estado === 'pendiente' ? 'gris' : '';
+        var llega = g.estado === 'pendiente' ? 'empieza el ' + fecha(g.desde) :
+          g.llega === 'ok' ? '✓ alcanzado' :
+          g.llega ? fecha(g.llega) + (c.fin && g.llega > c.fin ? ' <span class="warn">(después del fin)</span>' : '') :
+          g.faltan ? '<span class="warn">al ritmo actual, no</span>' : '—';
+        var vac = nf(g.vacunados) + (g.oficial ? ' <span class="sub" title="Dato oficial del ' + esc(fecha(g.oficial.fecha)) + ' (' + nf(g.oficial.n) + ') + contador desde entonces">●</span>' : ' <span class="sub" title="Estimado con el contador">est.</span>');
+        return '<tr class="' + cl + '"><td>' + esc(g.nombre) + ' <span class="sub">' + esc(g.vacunas.join(', ')) + '</span></td>' +
+          '<td>' + fecha(g.desde) + '</td>' +
+          '<td>' + (g.poblacion ? nf(g.poblacion) : '<span class="err">falta</span>') + '</td>' +
+          '<td>' + vac + '</td>' +
+          '<td><b>' + (g.cobertura == null ? '—' : nf(g.cobertura, 1) + ' %') + '</b></td>' +
+          '<td>' + (g.objetivo ? nf(g.objetivo) + ' %' : '—') + '</td>' +
+          '<td>' + (g.faltan == null ? '—' : nf(g.faltan)) + '</td>' +
+          '<td>' + nf(g.ritmoDia, 1) + '</td>' +
+          '<td class="' + (g.necesarioDia != null && g.necesarioDia > g.ritmoDia && g.estado !== 'pendiente' ? 'warn' : '') + '">' + (g.necesarioDia == null ? '—' : nf(g.necesarioDia, 1)) + '</td>' +
+          '<td class="l">' + llega + '</td></tr>';
+      }).join('') + '</tbody>' +
+      (faltaPob ? '<tfoot><tr><td colspan="10" class="l err" style="font-weight:600">Falta la población de algún grupo: ponla en «Campaña y previsión» para calcular la cobertura.</td></tr></tfoot>' : '');
+
+    var sel = $('oGru'), antes = sel.value;
+    sel.innerHTML = p.grupos.map(function(g){ return '<option>' + esc(g.nombre) + '</option>'; }).join('');
+    if (antes) sel.value = antes;
+
+    var vs = p.vacunas.filter(function(v){ return v.usada || v.consumoDia > 0; });
+    var plazos = {}, orden = [];
+    vs.forEach(function(v){
+      if (!v.reparto) return;
+      var k = v.reparto.limite + ' ' + v.reparto.hora + '>' + v.reparto.fecha;
+      if (!plazos[k]){ plazos[k] = { r: v.reparto, n: [] }; orden.push(k); }
+      plazos[k].n.push(v.nombre);
+    });
+    orden.sort();
+    $('pedTxt').innerHTML = !orden.length ? 'Para calcular el pedido, configura los días de reparto (carga una plantilla o edita la pestaña «Repartos» de la hoja).' :
+      'Próximos pedidos:<br>' + orden.map(function(k){
+        var r = plazos[k].r;
+        return '· <b>antes de las ' + esc(r.hora) + ' del ' + esc(fecha(r.limite)) + '</b> → reparto del <b>' + esc(fecha(r.fecha)) + '</b>' +
+          (orden.length > 1 || vs.some(function(v){ return !v.reparto; }) ? ' <span class="sub">(' + esc(plazos[k].n.join(', ')) + ')</span>' : '') +
+          (r.siguiente ? '; cubre hasta el ' + esc(fecha(r.siguiente)) : '; último reparto');
+      }).join('<br>');
+    $('tPed').innerHTML = !vs.length ? '<tbody><tr><td class="vacio">Ninguna vacuna activa está en los grupos.</td></tr></tbody>' :
+      '<thead><tr><th>Vacuna</th><th>Stock</th><th>Consumo previsto / día</th><th>Pedir antes de</th><th>Pedido sugerido</th><th class="l">Al final de la campaña</th></tr></thead><tbody>' +
+      vs.map(function(v){
+        var fin = v.balanceFin == null ? '—' : v.balanceFin >= 0
+          ? 'sobrarían ' + nf(v.balanceFin) + (v.recibidas ? ' <span class="sub">(' + nf(v.balanceFin / v.recibidas * 100, 1) + ' % de lo recibido)</span>' : '')
+          : 'faltan ' + nf(-v.balanceFin) + ' por recibir';
+        var sobra = v.balanceFin > 0 && v.recibidas && v.balanceFin / v.recibidas > 0.05;
+        var plazo = v.reparto ? esc(v.reparto.hora) + ' del ' + esc(fecha(v.reparto.limite)) + ' <span class="sub">(reparto ' + esc(fecha(v.reparto.fecha)) + ')</span>' :
+          '<span class="sub">' + (v.tieneCalendario ? 'no quedan repartos' : 'sin días de reparto') + '</span>';
+        return '<tr class="' + (v.noLlega ? 'bajo' : '') + '"><td>' + esc(v.nombre) + '</td><td>' + nf(v.stock) + '</td><td>' + nf(v.consumoDia, 1) + '</td>' +
+          '<td>' + plazo + '</td>' +
+          '<td><b>' + (v.pedido == null ? '—' : nf(v.pedido)) + '</b>' + (v.noLlega ? ' <span class="err">el stock no llega a este reparto</span>' : '') + '</td>' +
+          '<td class="l ' + (sobra ? 'warn' : '') + '">' + fin + (sobra ? ' · más del 5 %: pide menos' : '') + '</td></tr>';
+      }).join('') + '</tbody>';
+  }
+
+  function tipoCob(){
+    var pct = $('oTipo').value === 'pct';
+    $('oNumL').textContent = pct ? 'Cobertura oficial (%)' : 'Vacunados (acumulado)';
+    $('oNum').inputMode = pct ? 'decimal' : 'numeric';
+    $('oNum').placeholder = pct ? 'p. ej. 52,5' : 'p. ej. 620';
+  }
+  $('oTipo').addEventListener('change', tipoCob);
+  $('oFecha').max = hoyStr(); $('oFecha').value = sumar(hoyStr(), -1);
+
+  $('fCob').addEventListener('submit', function(e){
+    e.preventDefault();
+    var m = $('oMsg'), b = $('oGuardar'), t = $('oNum').value.trim().replace(/\s|%/g, '').replace(',', '.'), n = Number(t), pct = $('oTipo').value === 'pct';
+    var g = prev && prev.grupos.filter(function(x){ return x.nombre === $('oGru').value; })[0];
+    var fallo = t === '' || !(n >= 0) ? (pct ? 'Escribe la cobertura del grupo (%).' : 'Escribe los vacunados del grupo.') :
+      pct && n > 100 ? 'El porcentaje no puede pasar de 100.' :
+      !pct && n !== Math.floor(n) ? 'Los vacunados tienen que ser un número entero.' :
+      pct && g && !g.poblacion ? 'Pon antes la población de este grupo en «Campaña y previsión».' :
+      $('oFecha').value && $('oFecha').value > hoyStr() ? 'La fecha no puede ser futura.' : '';
+    if (fallo){ m.className = 'msg err'; m.textContent = fallo; $('oNum').focus(); return; }
+    var d = { grupo: $('oGru').value, fecha: $('oFecha').value, nota: $('oNota').value.trim() };
+    if (pct) d.porcentaje = n; else d.vacunados = n;
+    b.disabled = true; m.className = 'msg'; m.textContent = 'Guardando…';
+    run('registrarCobertura', PIN, d).then(function(p){
+      prev = p; pintarPrevision();
+      var gg = p.grupos.filter(function(x){ return x.nombre === d.grupo; })[0];
+      $('oNum').value = ''; $('oNota').value = '';
+      m.className = 'msg ok';
+      m.textContent = 'Guardado: ' + d.grupo + (pct && g ? ', ' + nf(n, 1) + ' % = ' + nf(Math.round(g.poblacion * n / 100)) + ' vacunados' : '') +
+        (d.fecha ? ' hasta el ' + fecha(d.fecha) : '') + '.' + (gg ? ' Con el contador desde entonces: ' + nf(gg.vacunados) + '.' : '');
+    }).catch(function(e){ siPin(e, function(x){ m.className = 'msg err'; m.textContent = 'No se guardó: ' + x; }); })
+      .then(function(){ b.disabled = false; });
+  });
+
+  // ---------- Campaña (configuración) ----------
+  function filaGru(g){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" class="gN" maxlength="60"></td><td><input type="number" class="gP" min="0" step="1" inputmode="numeric"></td>' +
+      '<td><input type="number" class="gO" min="0" max="100" step="1" inputmode="numeric"></td><td><input type="date" class="gD"></td><td><input type="text" class="gV" list="kVacs"></td>' +
+      '<td><input type="checkbox" class="gA"></td><td><button class="btn gX" type="button" aria-label="Quitar grupo">✕</button></td>';
+    tr.querySelector('.gN').value = g.nombre || '';
+    tr.querySelector('.gV').value = (g.vacunas || []).join(', ');
+    tr.querySelector('.gD').value = g.desde || '';
+    tr.querySelector('.gP').value = g.poblacion || '';
+    tr.querySelector('.gO').value = g.objetivo || '';
+    tr.querySelector('.gA').checked = g.activo !== false;
+    tr.querySelector('.gX').addEventListener('click', function(){ tr.remove(); });
+    return tr;
+  }
+  function pintarCampana(){
+    var p = prev;
+    pintarResumenEstado();
+    if (camPintada && $('dCam').open) return; // no pisar lo que se está editando
+    $('kIni').value = p.campana.inicio || ''; $('kFin').value = p.campana.fin || '';
+    $('kCor').value = p.correo || '';
+    $('kPla').innerHTML = p.plantillas.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.nombre) + '</option>'; }).join('');
+    var dl = document.getElementById('kVacs');
+    if (!dl){ dl = document.createElement('datalist'); dl.id = 'kVacs'; document.body.appendChild(dl); }
+    dl.innerHTML = p.vacunasConfig.map(function(n){ return '<option value="' + esc(n) + '">'; }).join('');
+    var tb = $('kGru'); tb.innerHTML = '';
+    p.gruposConfig.forEach(function(g){ tb.appendChild(filaGru(g)); });
+    $('kRep').innerHTML = p.repartos.length ? p.repartos.map(function(r){
+      return (r.vacunas ? '<b>' + esc(r.vacunas) + '</b> · ' : '') + esc(fecha(r.desde)) + ' – ' + esc(fecha(r.hasta)) + ': <b>' + esc(r.dias) + '</b> (' +
+        (r.antelacion ? 'pedido ' + r.antelacion + ' días laborables antes' : 'pedido el mismo día') + ', hasta las ' + esc(r.hora) + ')';
+    }).join('<br>') + '<br>Para cambiarlos, edita la pestaña «Repartos» de la hoja. En la columna «Vacunas» puedes dar a una vacuna su propio calendario (p. ej. «COVID-19»); vacía = todas las demás.' : 'No hay días de reparto. Carga una plantilla o rellena la pestaña «Repartos» de la hoja.';
+    camPintada = true;
+  }
+  function pintarResumenEstado(){
+    var on = prev && prev.resumenActivo;
+    $('kResEst').textContent = on ? '✓ Se envía cada lunes a las 8:00.' : 'Envío automático desactivado.';
+    $('kRes').textContent = on ? 'Desactivar el envío' : 'Activar el envío de los lunes';
+    pintarAvisos();
+  }
+
+  // ---------- Aviso de pedido ----------
+  var avisosPintados = false;
+  function pintarAvisos(){
+    var a = prev && prev.avisos;
+    if (!a) return;
+    $('aTgEst').innerHTML = a.telegram ? '✓ Telegram conectado con <b>' + esc(a.chatNombre || 'tu chat') + '</b>.' :
+      a.tokenGuardado ? 'Token guardado. Falta: abre tu bot en Telegram, pulsa <b>Iniciar</b> y luego <b>Conectar mi Telegram</b>.' : 'Telegram sin configurar.';
+    $('aTok').placeholder = a.tokenGuardado ? 'Guardado ✓ (déjalo vacío para no cambiarlo)' : 'Pega aquí el token de @BotFather';
+    if (avisosPintados && $('dCam').open) return;
+    if (!$('aHora').options.length) for (var h = 6; h <= 13; h++) $('aHora').insertAdjacentHTML('beforeend', '<option value="' + h + '">' + h + ':00</option>');
+    $('aHora').value = String(a.hora || 9);
+    $('aAct').checked = a.activo; $('aCorreo').checked = a.porCorreo;
+    avisosPintados = true;
+  }
+  function avisoErr(e){ siPin(e, function(x){ msgK('aMsg', false, x); }); }
+  $('aGuardar').addEventListener('click', function(){
+    var b = this; b.disabled = true; $('aMsg').className = 'msg'; $('aMsg').textContent = 'Guardando…';
+    run('guardarAvisos', PIN, { activo: $('aAct').checked, hora: Number($('aHora').value), porCorreo: $('aCorreo').checked, token: $('aTok').value.trim() })
+      .then(function(a){
+        prev.avisos = a; $('aTok').value = ''; avisosPintados = false; pintarAvisos();
+        msgK('aMsg', true, 'Guardado.' + (a.activo ? ' Te avisaré a las ' + a.hora + ':00 los días que toque pedir.' : '') +
+          (a.tokenGuardado && !a.telegram ? ' Ahora abre tu bot en Telegram, pulsa Iniciar y luego «Conectar mi Telegram».' : ''));
+      }).catch(avisoErr).then(function(){ b.disabled = false; });
+  });
+  $('aCon').addEventListener('click', function(){
+    var b = this; b.disabled = true; $('aMsg').className = 'msg'; $('aMsg').textContent = 'Buscando tu chat…';
+    var tok = $('aTok').value.trim();
+    var antes = tok ? run('guardarAvisos', PIN, { activo: $('aAct').checked, hora: Number($('aHora').value), porCorreo: $('aCorreo').checked, token: tok }) : Promise.resolve();
+    antes.then(function(){ return run('conectarTelegram', PIN); }).then(function(a){
+      prev.avisos = a; $('aTok').value = ''; pintarAvisos();
+      msgK('aMsg', true, 'Conectado con ' + (a.chatNombre || 'tu chat') + '. Mira Telegram: te ha llegado un mensaje.');
+    }).catch(avisoErr).then(function(){ b.disabled = false; });
+  });
+  $('aProbar').addEventListener('click', function(){
+    var b = this; b.disabled = true; $('aMsg').className = 'msg'; $('aMsg').textContent = 'Enviando…';
+    run('probarAviso', PIN).then(function(r){
+      msgK('aMsg', true, 'Aviso de prueba enviado' + (r.telegram ? ' a Telegram' : '') + (r.correo ? (r.telegram ? ' y' : '') + ' a ' + r.correo : '') + '.');
+    }).catch(avisoErr).then(function(){ b.disabled = false; });
+  });
+  function leerCampana(){
+    return {
+      inicio: $('kIni').value, fin: $('kFin').value, correo: $('kCor').value.trim(),
+      grupos: Array.prototype.map.call(document.querySelectorAll('#kGru tr'), function(tr){
+        return { nombre: tr.querySelector('.gN').value.trim(), vacunas: tr.querySelector('.gV').value.trim(), desde: tr.querySelector('.gD').value,
+                 poblacion: Number(tr.querySelector('.gP').value) || 0, objetivo: Number(tr.querySelector('.gO').value) || 0, activo: tr.querySelector('.gA').checked };
+      }).filter(function(g){ return g.nombre; })
+    };
+  }
+  function msgK(id, ok, t){ $(id).className = 'msg ' + (ok ? 'ok' : 'err'); $(id).textContent = t; }
+  $('kAdd').addEventListener('click', function(){ $('kGru').appendChild(filaGru({ activo: true })); $('kGru').lastChild.querySelector('.gN').focus(); });
+  $('kGuardar').addEventListener('click', function(){
+    var b = this; b.disabled = true; $('kMsg').className = 'msg'; $('kMsg').textContent = 'Guardando…';
+    run('guardarCampana', PIN, leerCampana()).then(function(p){
+      prev = p; camPintada = false; pintarPrevision(); pintarCampana();
+      msgK('kMsg', true, 'Campaña guardada.');
+    }).catch(function(e){ siPin(e, function(x){ msgK('kMsg', false, 'No se guardó: ' + x); }); })
+      .then(function(){ b.disabled = false; });
+  });
+  $('kCargar').addEventListener('click', function(){
+    var b = this, t = $('kPla').options[$('kPla').selectedIndex];
+    if (!t) return;
+    if (!confirm('Se sustituyen los grupos, las fechas y los días de reparto por la plantilla «' + t.text + '». Se conserva la población de los grupos que se llamen igual y no se toca nada más. ¿Seguir?')) return;
+    b.disabled = true; $('kMsg').className = 'msg'; $('kMsg').textContent = 'Cargando plantilla…';
+    run('cargarPlantilla', PIN, t.value).then(function(r){
+      camPintada = false;
+      msgK('kMsg', true, 'Plantilla cargada.' + (r.vacunasNuevas.length ? ' Vacunas añadidas: ' + r.vacunasNuevas.join(', ') + '.' : '') + ' Ahora pon la población de cada grupo y guarda.');
+      cfgPintada = false;
+      return cargar();
+    }).catch(function(e){ siPin(e, function(x){ msgK('kMsg', false, 'No se cargó: ' + x); }); })
+      .then(function(){ b.disabled = false; });
+  });
+  $('kRes').addEventListener('click', function(){
+    var b = this, on = !(prev && prev.resumenActivo);
+    b.disabled = true; $('kMsg2').className = 'msg'; $('kMsg2').textContent = 'Un momento…';
+    run('programarResumen', PIN, on).then(function(r){
+      prev.resumenActivo = r.activo; pintarResumenEstado();
+      msgK('kMsg2', true, r.activo ? 'Activado: llegará cada lunes a las 8:00.' : 'Desactivado.');
+    }).catch(function(e){ siPin(e, function(x){ msgK('kMsg2', false, x); }); })
+      .then(function(){ b.disabled = false; });
+  });
+  $('kProbar').addEventListener('click', function(){
+    var b = this; b.disabled = true; $('kMsg2').className = 'msg'; $('kMsg2').textContent = 'Enviando…';
+    run('probarResumen', PIN).then(function(r){ msgK('kMsg2', true, 'Enviado a ' + r.a + '.'); })
+      .catch(function(e){ siPin(e, function(x){ msgK('kMsg2', false, 'No se envió: ' + x); }); })
+      .then(function(){ b.disabled = false; });
   });
 
   // ---------- Configuración ----------

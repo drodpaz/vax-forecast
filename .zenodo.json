@@ -1,9 +1,11 @@
 {
   "title": "VaxForecast: contador de vacunas para centros de salud",
   "upload_type": "software",
-  "description": "<p>Contador de dosis para campañas de vacunación en centros de salud, hecho con Google Sheets y Google Apps Script. Cada profesional registra con un toque cada dosis que pone (también sin conexión) y un panel protegido con PIN compara las dosis puestas con las dosis necesarias por semana, la capacidad del centro (profesionales × huecos × días) y el stock de cada vacuna (entradas, mermas y recuentos), con avisos de stock mínimo y semanas de cobertura.</p><p>Cada centro instala su propia copia en su Google Drive: los datos no pasan por la persona autora y no se guarda ningún dato de pacientes. Interfaz en castellano; documentación en castellano y gallego.</p>",
+  "description": "<p>Contador de dosis para campañas de vacunación en centros de salud, hecho con Google Sheets y Google Apps Script. Cada profesional registra con un toque cada dosis que pone (también sin conexión, y con un contador flotante para el ordenador de la consulta) y un panel protegido con PIN compara las dosis puestas con las dosis necesarias, la capacidad del centro y el stock de cada vacuna (entradas, mermas y recuentos).</p><p>Desde la versión 1.1 incluye previsión de la campaña: cobertura estimada por grupo de población (con plantilla de la campaña de gripe 2026 de Galicia), fecha estimada para alcanzar el objetivo, pedido sugerido según los días de reparto de cada vacuna, balance de dosis al final de la campaña, resumen semanal por correo y aviso de pedido por Telegram.</p><p>Cada centro instala su propia copia en su Google Drive: los datos no pasan por la persona autora y no se guarda ningún dato de pacientes. Interfaz en castellano; documentación en castellano y gallego.</p>",
   "creators": [
-    { "name": "Rodríguez Paz, Domingo Damián" }
+    {
+      "name": "Rodríguez Paz, Domingo Damián"
+    }
   ],
   "license": "cc-by-nc-4.0",
   "access_right": "open",
@@ -17,6 +19,10 @@
     "nursing",
     "stock de vacunas",
     "Google Apps Script",
-    "Google Sheets"
-  ]
+    "Google Sheets",
+    "previsión",
+    "gripe",
+    "stock"
+  ],
+  "version": "1.1.0"
 }

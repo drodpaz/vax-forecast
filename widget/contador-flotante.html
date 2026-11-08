@@ -50,8 +50,16 @@
   <div>
     <h1>Contador flotante de vacunas</h1>
     <p class="sub" id="centro" style="font-weight:700;color:var(--pri)"></p>
-    <p class="sub">Elige tu nombre y turno y pulsa el botón verde. Sale una ventanita que se queda siempre encima de las demás, también encima del programa de historia clínica.</p>
+    <p class="sub" id="intro">Elige tu nombre y turno y pulsa el botón verde. Sale una ventanita que se queda siempre encima de las demás, también encima del programa de historia clínica.</p>
   </div>
+  <form id="enlace" novalidate style="display:none;flex-direction:column;gap:10px">
+    <p class="sub" style="margin:0">Para empezar, pega el <b>enlace del contador de tu centro</b> (empieza por <i>https://script.google.com/</i> y termina en <i>/exec</i>). Pídeselo a quien coordina la vacunación. Solo hay que hacerlo una vez en cada ordenador.</p>
+    <div><label for="url">Enlace del contador</label><input id="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></div>
+    <button class="flotar" id="urlOk">Guardar y conectar</button>
+    <button type="button" class="menos" id="urlNo" style="padding:9px" hidden>Cancelar</button>
+    <p class="msg" id="urlMsg" role="alert"></p>
+  </form>
+  <div id="principal" style="display:flex;flex-direction:column;gap:14px">
   <div>
     <label for="prof">Profesional</label>
     <select id="prof" hidden></select>
@@ -74,6 +82,8 @@
       <div class="mtot"><span>Mis dosis hoy</span><b id="mTot">–</b></div>
       <div class="mult" id="mUlt"></div>
     </div>
+  </div>
+  <p class="sub" id="cambiarW" hidden><a href="#" id="cambiar" style="color:var(--mut)">Cambiar el enlace del contador</a></p>
   </div>
 </section>
 
@@ -307,11 +317,59 @@
 
   // ---------- Inicio ----------
   function pintarCentro(){ var c = (cfg && cfg.centro) || ''; document.getElementById('centro').textContent = c; document.title = 'Contador flotante' + (c ? ' · ' + c : ''); }
+  // ---------- Enlace del contador ----------
+  // Si el archivo trae el enlace escrito dentro (URL_APP), se usa ese. Si no, se pide en pantalla
+  // la primera vez y el navegador lo recuerda.
+  var ES_URL = /^https:\/\/script\.google\.com\/(a\/[^\/]+\/)?macros\/s\/[\w-]+\/exec$/;
+  var URL_FIJA = ES_URL.test(URL_APP);
+  if (!URL_FIJA) URL_APP = store.get('wid_url', '');
+  function limpiarUrl(s){ return String(s || '').trim().split('#')[0].split('?')[0].replace(/\/dev$/, '/exec'); }
+  function verEnlace(si){
+    document.getElementById('enlace').style.display = si ? 'flex' : 'none';
+    document.getElementById('principal').style.display = si ? 'none' : 'flex';
+    document.getElementById('intro').hidden = si;
+    document.getElementById('cambiarW').hidden = si || URL_FIJA;
+    document.getElementById('urlNo').hidden = !ES_URL.test(URL_APP);
+    if (si){ document.getElementById('url').value = URL_APP || ''; document.getElementById('url').focus(); }
+  }
+  document.getElementById('enlace').addEventListener('submit', function(e){
+    e.preventDefault();
+    var m = document.getElementById('urlMsg'), b = document.getElementById('urlOk');
+    var u = limpiarUrl(document.getElementById('url').value);
+    m.className = 'msg err';
+    if (!ES_URL.test(u)){ m.textContent = 'Ese enlace no parece el del contador: tiene que empezar por https://script.google.com/ y terminar en /exec.'; return; }
+    b.disabled = true; m.className = 'msg'; m.textContent = 'Comprobando el enlace…';
+    var antes = URL_APP;
+    URL_APP = u;
+    api({ api: 'datos' }).then(function(){
+      store.set('wid_url', u);
+      if (u !== antes){
+        // Otro centro u otra hoja: se olvida la lista de vacunas y nombres guardada.
+        try { localStorage.removeItem('wid_cfg'); } catch(x){}
+        cfg = null; base = {}; baseProf = null; baseDia = null; ultSrv = 0;
+        el.filas.innerHTML = '<div class="vacio">Cargando vacunas…</div>';
+      }
+      b.disabled = false; m.textContent = '';
+      verEnlace(false);
+      msg('Conectando…');
+      iniciar();
+    }).catch(function(){
+      URL_APP = antes;
+      m.className = 'msg err';
+      m.textContent = 'No se pudo conectar con ese enlace. Comprueba que es el del contador (no el del panel) y que tienes conexión.';
+      b.disabled = false;
+    });
+  });
+  document.getElementById('urlNo').addEventListener('click', function(){ verEnlace(false); });
+  document.getElementById('cambiar').addEventListener('click', function(e){
+    e.preventDefault();
+    if (cola.length){ msg('Antes de cambiar el enlace espera a que se envíen los toques pendientes.', true); return; }
+    if (pip) pip.close();
+    verEnlace(true);
+  });
+
   function iniciar(){
-    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(URL_APP)){
-      msg('Falta configurar este archivo: ábrelo con el Bloc de notas y pega el enlace de tu aplicación web (el que termina en /exec) donde pone PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB.', true);
-      return;
-    }
+    if (!ES_URL.test(URL_APP)){ verEnlace(true); return; }
     api({ api: 'datos' }).then(function(d){
       var primera = !cfg;
       cfg = { centro: d.centro || '', vacunas: d.vacunas || [], profesionales: d.profesionales || [] };
@@ -329,7 +387,8 @@
       setTimeout(iniciar, 10000);
     });
   }
-  if (cfg){ pintarCentro(); montarProfesionales(); pintarFilas(); pintar(); }
+  verEnlace(false);
+  if (cfg && ES_URL.test(URL_APP)){ pintarCentro(); montarProfesionales(); pintarFilas(); pintar(); }
   iniciar();
 })();
 </script>
