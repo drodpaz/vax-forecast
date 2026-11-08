@@ -1,5 +1,6 @@
 /**
- * CONTADOR DE VACUNAS
+ * CONTADOR DE VACUNAS (VaxForecast)
+ * Copyright (c) 2026 drodpaz · Licensed under the EUPL (EUPL-1.2) · https://github.com/drodpaz/vax-forecast
  * ------------------------------------------------------------------
  * Pegar en la Hoja de cálculo: Extensiones > Apps Script > Code.gs
  * Junto con los archivos HTML «Contador» y «Panel».

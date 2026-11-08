@@ -197,4 +197,10 @@ docs/capturas/ imágenes para este README
 
 ## Licencia
 
-[CC BY-NC 4.0](LICENSE): puedes usarlo, copiarlo y adaptarlo citando la autoría, **sin fines comerciales**.
+Copyright © 2026 drodpaz · Licencia [**EUPL-1.2**](LICENSE) (Licencia Pública de la Unión Europea).
+
+- Puedes usarlo, copiarlo, modificarlo y compartirlo, también en organizaciones públicas y privadas.
+- Si distribuyes una versión modificada, o la ofreces como servicio en red, tienes que publicar tus cambios con esta misma licencia (o con una compatible, como GPL o AGPL) e indicar la autoría.
+- Texto oficial en castellano, gallego y el resto de lenguas de la UE: https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+
+Hasta la versión 1.1.0 el proyecto se publicó con licencia CC BY-NC 4.0; desde la 1.1.1 se publica con EUPL-1.2.

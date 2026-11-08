@@ -5,9 +5,9 @@ title: "VaxForecast: contador de vacunas para centros de salud"
 authors:
   - family-names: "Rodríguez Paz"
     given-names: "Domingo Damián"
-version: 1.1.0
+version: 1.1.1
 date-released: 2026-11-08
-license: CC-BY-NC-4.0
+license: EUPL-1.2
 repository-code: "https://github.com/drodpaz/vax-forecast"
 keywords:
   - vacunación
