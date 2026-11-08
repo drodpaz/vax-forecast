@@ -117,7 +117,7 @@
     <form id="fAsis" novalidate>
       <div><label for="aCen">Nombre del centro</label><input id="aCen" type="text" maxlength="80" placeholder="Centro de Salud …" autocomplete="organization"></div>
       <div class="dos">
-        <div><label for="aPin">PIN nuevo (4 a 20 caracteres)</label><input id="aPin" type="password" autocomplete="new-password"></div>
+        <div><label for="aPin">PIN nuevo (6 a 20 caracteres)</label><input id="aPin" type="password" autocomplete="new-password"></div>
         <div><label for="aPin2">Repite el PIN</label><input id="aPin2" type="password" autocomplete="new-password"></div>
       </div>
       <div><label for="aVac">Vacunas que se ponen (una por línea)</label><textarea id="aVac" placeholder="Gripe&#10;COVID-19"></textarea></div>
@@ -129,7 +129,8 @@
 
   <div id="vPanel" hidden>
     <header>
-      <div><div class="centro" id="hCentro"></div><h1>Panel de vacunación</h1><div class="sub" id="rangoTxt"></div></div>
+      <div><div class="centro" id="hCentro"></div><h1>Panel de vacunación</h1><div class="sub" id="rangoTxt"></div>
+        <div class="msg warn" id="avisoPin" hidden>Tu PIN tiene menos de 6 caracteres: cámbialo en «Configuración del centro» para que sea más difícil de adivinar.</div></div>
       <div class="links">
         <button class="btn" id="copiar" type="button">Copiar enlace del contador</button>
         <a class="btn" id="abrirHoja" target="_blank" rel="noopener">Abrir la hoja</a>
@@ -321,7 +322,14 @@
         <textarea id="cPro" placeholder="Nombre Apellido"></textarea>
         <div class="cfg">
           <label style="display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--tx)"><input type="checkbox" id="cPorProf" style="margin:0">Mostrar datos por profesional en el panel</label>
-          <div><label for="cPin">Nuevo PIN (vacío = no cambiar)</label><input type="password" id="cPin" autocomplete="new-password"></div>
+          <p class="sub" style="flex-basis:100%;margin:0">Son datos personales del equipo: actívalo solo si la plantilla está informada y hay un motivo (por ejemplo, organizar turnos), nunca para evaluar el rendimiento de nadie.</p>
+          <div><label for="cPin">Nuevo PIN, 6 a 20 caracteres (vacío = no cambiar)</label><input type="password" id="cPin" autocomplete="new-password"></div>
+        </div>
+        <h2 style="margin-top:16px">Clave del equipo (opcional)</h2>
+        <p class="sub" style="margin:0 0 6px">Si la pones, el contador solo funciona con el enlace que la lleva al final. Así nadie de fuera puede apuntar dosis aunque consiga el enlace. Las enfermeras no la escriben nunca: va dentro del enlace. Si la cambias, el enlace viejo deja de funcionar y hay que poner el nuevo en cada ordenador y móvil.</p>
+        <div class="cfg">
+          <div style="flex:1 1 220px"><label for="cClave">Clave (6 a 40 letras sin tilde, números, - o _; vacío = sin clave)</label><input type="text" id="cClave" maxlength="40" autocomplete="off" spellcheck="false" style="width:100%"></div>
+          <div style="align-self:flex-end"><button class="btn" id="cClaveGen" type="button">Generar una</button></div>
         </div>
         <button class="btn pri" id="guardar" type="button">Guardar configuración</button>
         <div class="msg" id="cfgMsg" role="status"></div>
@@ -352,7 +360,16 @@
               set: function(v){ try { v == null ? sessionStorage.removeItem('vac_pin') : sessionStorage.setItem('vac_pin', v); } catch(e){} } };
 
   // Fechas como texto yyyy-mm-dd (hora de Madrid)
-  var fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Madrid', year:'numeric', month:'2-digit', day:'2-digit'});
+  // Zona horaria: la manda el servidor (constante TZ de Code.gs).
+  var TZ = 'Europe/Madrid', fmtDia, fmtMov, fmtRec;
+  function ponerTZ(tz){
+    try { new Intl.DateTimeFormat('en-CA', {timeZone: tz}); } catch(e){ tz = 'Europe/Madrid'; }
+    TZ = tz || 'Europe/Madrid';
+    fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'});
+    fmtMov = new Intl.DateTimeFormat('es-ES', {timeZone:TZ, day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
+    fmtRec = new Intl.DateTimeFormat('es-ES', {timeZone:TZ, day:'numeric', month:'short'});
+  }
+  ponerTZ(TZ);
   function hoyStr(){ return fmtDia.format(new Date()); }
   function aUTC(f){ var a = f.split('-').map(Number); return new Date(Date.UTC(a[0], a[1] - 1, a[2])); }
   function str(d){ return d.toISOString().slice(0, 10); }
@@ -384,6 +401,7 @@
     $('pinMsg').textContent = '';
     return run('comprobarPin', pin).then(function(r){
       PIN = pin; ses.set(pin);
+      if (r && r.tz && r.tz !== TZ) ponerTZ(r.tz);
       ponerCentro(r && r.centro);
       if (r && r.primerUso) mostrarAsistente(r);
       else { vista('panel'); cargar(); }
@@ -406,7 +424,7 @@
     var m = $('asisMsg'), b = $('aGuardar');
     var d = { centro: $('aCen').value.trim(), pin: $('aPin').value.trim(), vacunas: lineas('aVac'), profesionales: lineas('aPro') };
     var fallo = !d.centro ? 'Escribe el nombre del centro.' :
-      !/^\S{4,20}$/.test(d.pin) ? 'El PIN nuevo tiene que tener entre 4 y 20 caracteres, sin espacios.' :
+      !/^\S{6,20}$/.test(d.pin) ? 'El PIN nuevo tiene que tener entre 6 y 20 caracteres, sin espacios.' :
       d.pin === PIN_FABRICA ? 'El PIN nuevo no puede ser ' + PIN_FABRICA + '.' :
       d.pin !== $('aPin2').value.trim() ? 'Los dos PIN no coinciden.' :
       !d.vacunas.length ? 'Escribe al menos una vacuna.' : '';
@@ -419,7 +437,7 @@
       $('dCfg').open = true; // para que completen huecos, enfermeras y dosis necesarias
     }).catch(function(e){
       var t = errTxt(e);
-      if (/PIN incorrecto/i.test(t)) return volverPin(t);
+      if (/PIN incorrecto|PIN bloqueado/i.test(t)) return volverPin(t);
       m.className = 'msg err'; m.textContent = 'No se guardó: ' + t;
     }).then(function(){ b.disabled = false; });
   });
@@ -481,6 +499,8 @@
     $('rangoTxt').textContent = (d.desde === d.hasta ? diaCorto(d.desde) : diaCorto(d.desde) + ' – ' + diaCorto(d.hasta)) +
       ' · ' + dias + ' día' + (dias === 1 ? '' : 's') + ' laborable' + (dias === 1 ? '' : 's') + ' hasta hoy';
     $('abrirHoja').href = d.urlHoja || '#';
+    if (c.tz && c.tz !== TZ) ponerTZ(c.tz);
+    $('avisoPin').hidden = !c.pinCorto;
     ponerCentro(c.centro);
 
     var pOcu = pct(puestas, capPer), pNec = pct(puestas, necPer);
@@ -563,8 +583,6 @@
   }
 
   // ---------- Stock ----------
-  var fmtMov = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false});
-  var fmtRec = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', day:'numeric', month:'short'});
   var AYUDA = {
     Entrada: ['Dosis que llegan', 'Llegada de un pedido: las dosis se suman al stock.'],
     Merma: ['Dosis perdidas', 'Dosis rotas, caducadas o desechadas: se restan del stock.'],
@@ -652,14 +670,14 @@
         (dif ? ' Diferencia con el cálculo: ' + (dif > 0 ? '+' : '') + nf(dif) + '.' : '');
     }).catch(function(e){
       var x = errTxt(e);
-      if (/PIN incorrecto/i.test(x)) return volverPin(x);
+      if (/PIN incorrecto|PIN bloqueado/i.test(x)) return volverPin(x);
       m.className = 'msg err'; m.textContent = 'No se guardó: ' + x;
     }).then(function(){ b.disabled = false; });
   });
 
   // ---------- Previsión de la campaña ----------
   var prev = null, camPintada = false;
-  function siPin(e, otro){ var x = errTxt(e); if (/PIN incorrecto/i.test(x)) { volverPin(x); return true; } if (otro) otro(x); return false; }
+  function siPin(e, otro){ var x = errTxt(e); if (/PIN incorrecto|PIN bloqueado/i.test(x)) { volverPin(x); return true; } if (otro) otro(x); return false; }
   function fecha(f){ return f ? diaCorto(f) : '—'; }
 
   function cargarPrevision(){
@@ -917,6 +935,7 @@
     $('cCen').value = c.centro || '';
     $('cEnf').value = c.enfermeras; $('cHue').value = c.huecos; $('cDia').value = c.dias;
     $('cPorProf').checked = c.porProfesional;
+    $('cClave').value = c.clave || '';
     $('cPro').value = c.profesionales.join('\n');
     var tb = $('cVac'); tb.innerHTML = '';
     c.vacunas.forEach(function(v){ tb.appendChild(filaVac(v)); });
@@ -926,7 +945,7 @@
     return {
       centro: $('cCen').value.trim(),
       enfermeras: Number($('cEnf').value) || 0, huecos: Number($('cHue').value) || 0, dias: Number($('cDia').value) || 5,
-      porProfesional: $('cPorProf').checked, pin: $('cPin').value.trim(),
+      porProfesional: $('cPorProf').checked, pin: $('cPin').value.trim(), clave: $('cClave').value.trim(),
       profesionales: $('cPro').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean),
       vacunas: Array.prototype.map.call(document.querySelectorAll('#cVac tr'), function(tr){
         return { nombre: tr.querySelector('.vN').value.trim(), necesarias: Number(tr.querySelector('.vS').value) || 0,
@@ -944,14 +963,24 @@
   }
   ['cEnf','cHue','cDia'].forEach(function(id){ $(id).addEventListener('input', capTxt); });
   $('addVac').addEventListener('click', function(){ $('cVac').appendChild(filaVac({nombre:'', necesarias:0, activa:true})); $('cVac').lastChild.querySelector('.vN').focus(); });
+  $('cClaveGen').addEventListener('click', function(){
+    var abc = 'abcdefghijkmnpqrstuvwxyz23456789', a = new Uint32Array(10), k = '';
+    crypto.getRandomValues(a);
+    for (var i = 0; i < a.length; i++) k += abc[a[i] % abc.length];
+    $('cClave').value = k;
+  });
   $('guardar').addEventListener('click', function(){
     var f = leerForm(), b = this;
     if (!f.vacunas.length){ $('cfgMsg').className = 'msg err'; $('cfgMsg').textContent = 'Tiene que haber al menos una vacuna.'; return; }
+    if (f.clave && !/^[A-Za-z0-9_-]{6,40}$/.test(f.clave)){ $('cfgMsg').className = 'msg err'; $('cfgMsg').textContent = 'La clave del equipo tiene que tener entre 6 y 40 letras sin tilde, números, - o _ (sin espacios).'; return; }
+    if (f.clave !== (datos.config.clave || '') && !confirm(f.clave
+      ? 'Con la clave nueva, el enlace que usáis ahora deja de funcionar. Después tendrás que copiar el enlace nuevo («Copiar enlace del contador») y ponerlo en cada ordenador y móvil. ¿Seguir?'
+      : 'Sin clave, cualquiera que tenga el enlace del contador podrá apuntar dosis. ¿Quitar la clave?')) return;
     b.disabled = true; $('cfgMsg').className = 'msg'; $('cfgMsg').textContent = 'Guardando…';
     run('guardarConfig', PIN, f).then(function(r){
       if (f.pin){ PIN = f.pin; ses.set(PIN); $('cPin').value = ''; }
-      $('cfgMsg').className = 'msg ok'; $('cfgMsg').textContent = 'Guardado.' + (r.pinCambiado ? ' PIN cambiado.' : '') + ' Los contadores lo verán al recargar la página.';
-      cfgPintada = false; $('dCfg').open = false;
+      $('cfgMsg').className = 'msg ok'; $('cfgMsg').textContent = 'Guardado.' + (r.pinCambiado ? ' PIN cambiado.' : '') + (r.claveCambiada ? ' Clave del equipo cambiada: pulsa «Copiar enlace del contador» y pon el enlace nuevo en cada ordenador y móvil.' : ' Los contadores lo verán al recargar la página.');
+      cfgPintada = false; if (!r.claveCambiada) $('dCfg').open = false;
       return cargar();
     }).catch(function(e){ $('cfgMsg').className = 'msg err'; $('cfgMsg').textContent = 'No se guardó: ' + errTxt(e); })
       .then(function(){ b.disabled = false; });

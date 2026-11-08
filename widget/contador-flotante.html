@@ -53,7 +53,7 @@
     <p class="sub" id="intro">Elige tu nombre y turno y pulsa el botón verde. Sale una ventanita que se queda siempre encima de las demás, también encima del programa de historia clínica.</p>
   </div>
   <form id="enlace" novalidate style="display:none;flex-direction:column;gap:10px">
-    <p class="sub" style="margin:0">Para empezar, pega el <b>enlace del contador de tu centro</b> (empieza por <i>https://script.google.com/</i> y termina en <i>/exec</i>). Pídeselo a quien coordina la vacunación. Solo hay que hacerlo una vez en cada ordenador.</p>
+    <p class="sub" style="margin:0">Para empezar, pega el <b>enlace del contador de tu centro</b> (empieza por <i>https://script.google.com/</i>; si tu centro usa clave del equipo, termina en <i>?k=</i> y unas letras). Pídeselo a quien coordina la vacunación. Solo hay que hacerlo una vez en cada ordenador.</p>
     <div><label for="url">Enlace del contador</label><input id="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></div>
     <button class="flotar" id="urlOk">Guardar y conectar</button>
     <button type="button" class="menos" id="urlNo" style="padding:9px" hidden>Cancelar</button>
@@ -98,8 +98,16 @@
     get: function(k, d){ try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
     set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   };
-  var fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Madrid', year:'numeric', month:'2-digit', day:'2-digit'});
-  var fmtHora = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', hour:'2-digit', hour12:false});
+  // Zona horaria: la manda el servidor (constante TZ de Code.gs); mientras tanto, la última conocida.
+  var TZ = 'Europe/Madrid', fmtDia, fmtHora, fmtHM;
+  function ponerTZ(tz){
+    try { new Intl.DateTimeFormat('en-CA', {timeZone: tz}); } catch(e){ tz = 'Europe/Madrid'; }
+    TZ = tz || 'Europe/Madrid';
+    fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'});
+    fmtHora = new Intl.DateTimeFormat('es-ES', {timeZone:TZ, hour:'2-digit', hour12:false});
+    fmtHM = new Intl.DateTimeFormat('es-ES', {timeZone:TZ, hour:'2-digit', minute:'2-digit', hour12:false});
+  }
+  ponerTZ((store.get('wid_cfg', null) || {}).tz);
   function diaDe(ms){ return fmtDia.format(new Date(ms)); }
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -113,11 +121,20 @@
   var hoy = diaDe(Date.now());
   var base = {}, baseProf = null, baseDia = null, ultSrv = 0;
   var ultLocal = store.get('wid_ult', {}); // {profesional: {t, id}} última dosis sumada en este ordenador
-  var fmtHM = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', hour:'2-digit', minute:'2-digit', hour12:false});
   var enviando = false, error = false, gen = 0, pip = null, conectado = false;
 
+  // El enlace puede llevar la clave del equipo al final (…/exec?k=CLAVE); se manda en cada petición.
+  function partir(u){
+    var m = String(u || '').match(/^(.*?\/exec)(?:\?k=([A-Za-z0-9_-]+))?$/);
+    return m ? { base: m[1], k: m[2] || '' } : { base: String(u || ''), k: '' };
+  }
+  function esClave(e){ return /Clave del equipo/.test(String((e && e.message) || e)); }
+  var MSG_CLAVE = 'La clave del equipo ha cambiado o no es correcta. Pulsa «Cambiar el enlace del contador» y pega el enlace nuevo (cópialo del panel). Lo que cuentes se guarda en este ordenador y se enviará después.';
   function api(params, body){
-    var url = URL_APP + (params ? '?' + new URLSearchParams(params).toString() : '');
+    var p = partir(URL_APP);
+    if (params && p.k) params.k = p.k;
+    if (body && p.k) body.k = p.k;
+    var url = p.base + (params ? '?' + new URLSearchParams(params).toString() : '');
     var op = body ? { method: 'POST', body: JSON.stringify(body) } : {};
     return fetch(url, op).then(function(r){
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -228,7 +245,7 @@
     api({ api: 'hoy', profesional: p }).then(function(r){
       if (g !== gen || p !== prof()) return;
       hoy = r.hoy || hoy; base = r.mias || {}; ultSrv = Number(r.ultima) || 0; baseProf = p; baseDia = hoy; error = false;
-    }).catch(function(){ error = true; }).then(pintar);
+    }).catch(function(e){ error = true; if (esClave(e)) msg(MSG_CLAVE, true); }).then(pintar);
   }
   function enviar(){
     if (enviando || !cola.length) return;
@@ -244,8 +261,8 @@
       cola = cola.filter(function(e){ return !hechos[e.id]; });
       store.set('wid_cola', cola);
       gen++; error = false;
-      if (r.rechazados && r.rechazados.length) msg('Alguna vacuna ya no existe en la configuración y no se guardó.', true);
-    }).catch(function(){ error = true; }).then(function(){
+      if (r.rechazados && r.rechazados.length) msg('Algún toque no se guardó: la vacuna ya no existe o la fecha es demasiado antigua.', true);
+    }).catch(function(e){ error = true; if (esClave(e)) msg(MSG_CLAVE, true); }).then(function(){
       enviando = false; pintar();
       if (cola.length){ if (error) setTimeout(enviar, 15000); else enviar(); }
       else if (!baseOk()) cargarBase();
@@ -319,16 +336,23 @@
   function pintarCentro(){ var c = (cfg && cfg.centro) || ''; document.getElementById('centro').textContent = c; document.title = 'Contador flotante' + (c ? ' · ' + c : ''); }
   // ---------- Enlace del contador ----------
   // Si el archivo trae el enlace escrito dentro (URL_APP), se usa ese. Si no, se pide en pantalla
-  // la primera vez y el navegador lo recuerda.
-  var ES_URL = /^https:\/\/script\.google\.com\/(a\/[^\/]+\/)?macros\/s\/[\w-]+\/exec$/;
-  var URL_FIJA = ES_URL.test(URL_APP);
-  if (!URL_FIJA) URL_APP = store.get('wid_url', '');
-  function limpiarUrl(s){ return String(s || '').trim().split('#')[0].split('?')[0].replace(/\/dev$/, '/exec'); }
+  // la primera vez y el navegador lo recuerda. Un enlace cambiado a mano (p. ej. por una clave
+  // del equipo nueva) se recuerda mientras el archivo siga trayendo el mismo enlace de serie.
+  var ES_URL = /^https:\/\/script\.google\.com\/(a\/[^\/]+\/)?macros\/s\/[\w-]+\/exec(\?k=[A-Za-z0-9_-]+)?$/;
+  var URL_EMB = URL_APP;
+  var guardada = store.get('wid_url', '');
+  if (typeof guardada === 'string') guardada = { de: 'PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB', url: guardada }; // versiones anteriores
+  URL_APP = guardada && guardada.de === URL_EMB && ES_URL.test(guardada.url) ? guardada.url : (ES_URL.test(URL_EMB) ? URL_EMB : '');
+  function limpiarUrl(s){
+    s = String(s || '').trim().split('#')[0];
+    var k = (s.match(/[?&]k=([A-Za-z0-9_-]+)/) || [])[1];
+    return s.split('?')[0].replace(/\/dev$/, '/exec') + (k ? '?k=' + k : '');
+  }
   function verEnlace(si){
     document.getElementById('enlace').style.display = si ? 'flex' : 'none';
     document.getElementById('principal').style.display = si ? 'none' : 'flex';
     document.getElementById('intro').hidden = si;
-    document.getElementById('cambiarW').hidden = si || URL_FIJA;
+    document.getElementById('cambiarW').hidden = si;
     document.getElementById('urlNo').hidden = !ES_URL.test(URL_APP);
     if (si){ document.getElementById('url').value = URL_APP || ''; document.getElementById('url').focus(); }
   }
@@ -337,13 +361,13 @@
     var m = document.getElementById('urlMsg'), b = document.getElementById('urlOk');
     var u = limpiarUrl(document.getElementById('url').value);
     m.className = 'msg err';
-    if (!ES_URL.test(u)){ m.textContent = 'Ese enlace no parece el del contador: tiene que empezar por https://script.google.com/ y terminar en /exec.'; return; }
+    if (!ES_URL.test(u)){ m.textContent = 'Ese enlace no parece el del contador: tiene que empezar por https://script.google.com/ y terminar en /exec (o en /exec?k= y la clave).'; return; }
     b.disabled = true; m.className = 'msg'; m.textContent = 'Comprobando el enlace…';
     var antes = URL_APP;
     URL_APP = u;
     api({ api: 'datos' }).then(function(){
-      store.set('wid_url', u);
-      if (u !== antes){
+      store.set('wid_url', { de: URL_EMB, url: u });
+      if (partir(u).base !== partir(antes).base){
         // Otro centro u otra hoja: se olvida la lista de vacunas y nombres guardada.
         try { localStorage.removeItem('wid_cfg'); } catch(x){}
         cfg = null; base = {}; baseProf = null; baseDia = null; ultSrv = 0;
@@ -353,10 +377,12 @@
       verEnlace(false);
       msg('Conectando…');
       iniciar();
-    }).catch(function(){
+    }).catch(function(err){
       URL_APP = antes;
       m.className = 'msg err';
-      m.textContent = 'No se pudo conectar con ese enlace. Comprueba que es el del contador (no el del panel) y que tienes conexión.';
+      m.textContent = esClave(err)
+        ? 'Ese enlace no lleva la clave del equipo correcta. Cópialo completo desde el panel, con el botón «Copiar enlace del contador».'
+        : 'No se pudo conectar con ese enlace. Comprueba que es el del contador (no el del panel) y que tienes conexión.';
       b.disabled = false;
     });
   });
@@ -372,17 +398,19 @@
     if (!ES_URL.test(URL_APP)){ verEnlace(true); return; }
     api({ api: 'datos' }).then(function(d){
       var primera = !cfg;
-      cfg = { centro: d.centro || '', vacunas: d.vacunas || [], profesionales: d.profesionales || [] };
+      if (d.tz && d.tz !== TZ) ponerTZ(d.tz);
+      cfg = { centro: d.centro || '', tz: d.tz || TZ, vacunas: d.vacunas || [], profesionales: d.profesionales || [] };
       pintarCentro();
       hoy = d.hoy || hoy; conectado = true; error = false;
       store.set('wid_cfg', cfg);
       if (primera || !el.filas.querySelector('.fila')) { montarProfesionales(); pintarFilas(); }
       msg(prof() ? 'Listo. Pulsa «Abrir contador flotante».' : 'Elige tu nombre para empezar.');
       pintar(); enviar(); cargarBase();
-    }).catch(function(){
+    }).catch(function(e){
       error = true;
       if (cfg && !el.filas.querySelector('.fila')){ montarProfesionales(); pintarFilas(); }
-      msg(cfg ? 'Sin conexión: puedes seguir contando, se enviará después.' : 'No se pudo conectar con la hoja. Reintentando…', !cfg);
+      if (esClave(e)) msg(MSG_CLAVE, true);
+      else msg(cfg ? 'Sin conexión: puedes seguir contando, se enviará después.' : 'No se pudo conectar con la hoja. Reintentando…', !cfg);
       pintar();
       setTimeout(iniciar, 10000);
     });

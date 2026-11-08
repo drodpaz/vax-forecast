@@ -16,7 +16,8 @@
  *   Repartos       días de reparto de vacunas y plazo para hacer el pedido.
  */
 
-// Zona horaria del centro. En Canarias: 'Atlantic/Canary' (cámbiala también en Contador, Panel y el contador flotante).
+// Zona horaria del centro. En Canarias: 'Atlantic/Canary'. Solo hay que cambiarla aquí:
+// el contador, el panel y el contador flotante la reciben del servidor.
 const TZ = 'Europe/Madrid';
 const H_REG = 'Registro';
 const H_CFG = 'Configuración';
@@ -49,10 +50,12 @@ const P = {
   fin: 'Fin de campaña',
   correo: 'Correo del resumen semanal',
   avisoCorreo: 'Aviso de pedido también por correo (Sí/No)',
-  avisoHora: 'Hora del aviso de pedido'
+  avisoHora: 'Hora del aviso de pedido',
+  clave: 'Clave del equipo (vacío = sin clave)'
 };
-const PARAMS_DEF = [[P.centro, ''], [P.enf, '6'], [P.huecos, '12'], [P.dias, '5'], [P.pin, PIN_FABRICA], [P.porProf, 'Sí'],
-  [P.inicio, ''], [P.fin, ''], [P.correo, ''], [P.avisoCorreo, 'No'], [P.avisoHora, '9']];
+// La vista por profesional viene desactivada: son datos personales de la plantilla (RGPD).
+const PARAMS_DEF = [[P.centro, ''], [P.enf, '6'], [P.huecos, '12'], [P.dias, '5'], [P.pin, PIN_FABRICA], [P.porProf, 'No'],
+  [P.inicio, ''], [P.fin, ''], [P.correo, ''], [P.avisoCorreo, 'No'], [P.avisoHora, '9'], [P.clave, '']];
 // El token del bot de Telegram y el chat se guardan en las propiedades del script, no en la hoja.
 const PROP_TG_TOKEN = 'TELEGRAM_TOKEN';
 const PROP_TG_CHAT = 'TELEGRAM_CHAT';
@@ -115,9 +118,9 @@ function doPost(e) {
 function api_(accion, d) {
   let out;
   try {
-    if (accion === 'datos') out = datosContador();
-    else if (accion === 'hoy') out = misHoy(d.profesional);
-    else if (accion === 'registrar') out = registrar(d.lista);
+    if (accion === 'datos') out = datosContador(d.k);
+    else if (accion === 'hoy') out = misHoy(d.profesional, d.k);
+    else if (accion === 'registrar') out = registrar(d.lista, d.k);
     else out = { error: 'Acción desconocida' };
   } catch (err) {
     out = { error: String((err && err.message) || err) };
@@ -139,68 +142,89 @@ function prepararHojas() {
 
 /* ------------------------- Contador ------------------------------ */
 
+/**
+ * Clave del equipo (opcional). Si está puesta en Configuración, el contador solo funciona
+ * con el enlace que la lleva al final (…/exec?k=CLAVE): quien tenga el enlace sin la clave
+ * no puede apuntar dosis ni ver los nombres del equipo.
+ */
+const CLAVE_MIN = 6;
+function comprobarClave_(c, k) {
+  if (!c.clave) return;
+  if (String(k == null ? '' : k).trim() !== c.clave) throw new Error('Clave del equipo incorrecta: pide el enlace nuevo del contador a quien coordina la vacunación.');
+}
+function claveValida_(k) { return new RegExp('^[A-Za-z0-9_-]{' + CLAVE_MIN + ',40}$').test(k); }
+function urlContador_(c) { const u = urlApp_(); return u && c.clave ? u + '?k=' + encodeURIComponent(c.clave) : u; }
+
 /** Datos que necesita la pantalla del contador. */
-function datosContador() {
+function datosContador(k) {
   const c = leerConfig_();
+  comprobarClave_(c, k);
   return {
     centro: c.centro,
+    tz: TZ,
     vacunas: c.vacunas.filter(function (v) { return v.activa; }).map(function (v) { return v.nombre; }),
     profesionales: c.profesionales,
-    hoy: hoy_(),
-    url: urlApp_()
+    hoy: hoy_()
   };
 }
 
 /**
  * Guarda una lista de toques. Cada toque: {id, momento, profesional, turno, vacuna, cambio}.
- * Devuelve los id guardados (también los repetidos, para que el móvil los borre de su cola).
+ * Devuelve los id guardados (también los repetidos, para que el móvil los borre de su cola)
+ * y los rechazados (vacuna que ya no existe, id o fecha no válidos).
+ *   - Repetidos: se comprueba el Id en la hoja (últimas IDS_REVISADOS filas), no solo en la caché.
+ *   - Fecha: se guarda la del toque. Si viene del futuro (reloj del móvil adelantado), la de ahora;
+ *     si tiene más de MAX_DIAS_ATRAS días, se rechaza.
  */
-function registrar(lista) {
+const IDS_REVISADOS = 20000;
+const MAX_DIAS_ATRAS = 120;
+function registrar(lista, k) {
+  const c = leerConfig_();
+  comprobarClave_(c, k);
   if (!Array.isArray(lista) || !lista.length) return { ok: true, guardados: [], rechazados: [] };
   lista = lista.slice(0, 500);
-  const c = leerConfig_();
   const vacs = {};
   c.vacunas.forEach(function (v) { vacs[v.nombre] = true; });
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    const cache = CacheService.getScriptCache();
-    const claves = lista.map(function (e) { return 'ev_' + String((e && e.id) || '').slice(0, 40); });
-    const vistos = cache.getAll(claves) || {};
+    const h = libro_().getSheetByName(H_REG);
+    const ultima = h.getLastRow();
+    const yaEstan = {};
+    if (ultima > 1) {
+      const desde = Math.max(2, ultima - IDS_REVISADOS + 1);
+      h.getRange(desde, 8, ultima - desde + 1, 1).getValues().forEach(function (r) { if (r[0] !== '') yaEstan[String(r[0])] = true; });
+    }
     const ahora = Date.now();
     const filas = [];
     const guardados = [];
     const rechazados = [];
-    const nuevos = {};
 
-    lista.forEach(function (e, i) {
+    lista.forEach(function (e) {
       const id = String((e && e.id) || '').slice(0, 40);
       if (!id) return;
-      const clave = claves[i];
-      if (vistos[clave] || nuevos[clave]) { guardados.push(id); return; }
+      if (!/^[\w-]+$/.test(id)) { rechazados.push(id); return; }
+      if (yaEstan[id]) { guardados.push(id); return; }
 
       const vac = String(e.vacuna || '').trim();
       const cambio = Number(e.cambio);
-      if (!vacs[vac] || (cambio !== 1 && cambio !== -1)) { rechazados.push(id); return; }
-
       let t = Number(e.momento);
-      if (!isFinite(t) || t > ahora + 5 * 60000 || t < ahora - 14 * 86400000) t = ahora;
+      if (!isFinite(t)) t = ahora;
+      if (t > ahora + 5 * 60000) t = ahora;
+      if (!vacs[vac] || (cambio !== 1 && cambio !== -1) || t < ahora - MAX_DIAS_ATRAS * 86400000) { rechazados.push(id); return; }
+
       const d = new Date(t);
-      const prof = String(e.profesional || '').trim().slice(0, 60) || 'Sin nombre';
+      const prof = limpiarTexto_(e.profesional, 60) || 'Sin nombre';
       const turno = e.turno === 'Tarde' ? 'Tarde' : 'Mañana';
       const fecha = Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
 
       filas.push([d, fecha, semanaDeFecha_(fecha), turno, prof, vac, cambio, id]);
       guardados.push(id);
-      nuevos[clave] = '1';
+      yaEstan[id] = true;
     });
 
-    if (filas.length) {
-      const h = libro_().getSheetByName(H_REG);
-      h.getRange(h.getLastRow() + 1, 1, filas.length, CAB_REG.length).setValues(filas);
-      cache.putAll(nuevos, 21600);
-    }
+    if (filas.length) h.getRange(ultima + 1, 1, filas.length, CAB_REG.length).setValues(filas);
     return { ok: true, guardados: guardados, rechazados: rechazados };
   } finally {
     lock.releaseLock();
@@ -208,13 +232,14 @@ function registrar(lista) {
 }
 
 /** Dosis de hoy: las de un profesional y las de todo el centro. */
-function misHoy(profesional) {
+function misHoy(profesional, k) {
+  comprobarClave_(leerConfig_(), k);
   const hoy = hoy_();
   const prof = String(profesional || '').trim();
   const mias = {};
   const centro = {};
   let ultima = 0;
-  leerRegistro_().forEach(function (r) {
+  leerRegistroDesde_(hoy).forEach(function (r) {
     if (r.fecha !== hoy) return;
     centro[r.vacuna] = (centro[r.vacuna] || 0) + r.cambio;
     if (r.profesional === prof) {
@@ -239,11 +264,12 @@ function infoPublica() {
 function comprobarPin(pin) {
   const c = leerConfig_();
   comprobarPin_(c, pin);
-  if (!esPinFabrica_(c)) return { ok: true, primerUso: false, centro: c.centro };
+  if (!esPinFabrica_(c)) return { ok: true, primerUso: false, centro: c.centro, tz: TZ };
   return {
     ok: true,
     primerUso: true,
     centro: c.centro,
+    tz: TZ,
     vacunas: c.vacunas.map(function (v) { return v.nombre; }),
     profesionales: c.profesionales
   };
@@ -259,7 +285,7 @@ function completarAsistente(pin, d) {
   const centro = limpiarTexto_(d.centro, 80);
   if (!centro) throw new Error('Escribe el nombre del centro.');
   const nuevoPin = String(d.pin || '').trim();
-  if (!/^\S{4,20}$/.test(nuevoPin)) throw new Error('El PIN nuevo tiene que tener entre 4 y 20 caracteres, sin espacios.');
+  if (!pinValido_(nuevoPin)) throw new Error('El PIN nuevo tiene que tener entre ' + PIN_MIN + ' y 20 caracteres, sin espacios.');
   if (nuevoPin === PIN_FABRICA) throw new Error('El PIN nuevo no puede ser ' + PIN_FABRICA + '.');
 
   // Se conservan las cifras de las vacunas que ya existían con el mismo nombre.
@@ -267,7 +293,7 @@ function completarAsistente(pin, d) {
   c.vacunas.forEach(function (v) { previas[v.nombre.toLowerCase()] = v; });
   const vistasV = {};
   const vac = (d.vacunas || [])
-    .map(function (s) { return String(s || '').trim().slice(0, 40); })
+    .map(function (s) { return limpiarTexto_(s, 40); })
     .filter(function (s) { if (!s || vistasV[s.toLowerCase()]) return false; vistasV[s.toLowerCase()] = true; return true; })
     .slice(0, 30)
     .map(function (n) {
@@ -338,8 +364,9 @@ function resumen(pin, desde, hasta) {
 
   return {
     config: {
+      tz: TZ, pinCorto: !!c.pin && c.pin.length < PIN_MIN,
       centro: c.centro, enfermeras: c.enfermeras, huecos: c.huecos, dias: c.dias,
-      porProfesional: c.porProfesional, vacunas: c.vacunas, profesionales: c.profesionales
+      porProfesional: c.porProfesional, vacunas: c.vacunas, profesionales: c.profesionales, clave: c.clave
     },
     desde: desde,
     hasta: hasta,
@@ -360,7 +387,7 @@ function resumen(pin, desde, hasta) {
     porSemana: Object.keys(porSem).sort().map(function (k) {
       return { semana: k, desde: lunesDe_(porSem[k].desde), total: porSem[k].total, v: porSem[k].v };
     }),
-    urlContador: urlApp_(),
+    urlContador: urlContador_(c),
     urlHoja: libro_().getUrl()
   };
 }
@@ -375,13 +402,18 @@ function guardarConfig(pin, cfg) {
     .filter(function (v) { return v && String(v.nombre || '').trim(); })
     .slice(0, 30)
     .map(function (v) {
-      return [String(v.nombre).trim().slice(0, 40), num_(v.necesarias), v.activa === false ? 'No' : 'Sí', Math.round(num_(v.minimo))];
+      return [limpiarTexto_(v.nombre, 40), num_(v.necesarias), v.activa === false ? 'No' : 'Sí', Math.round(num_(v.minimo))];
     });
   if (!vac.length) throw new Error('Tiene que haber al menos una vacuna.');
 
   const pro = listaProfesionales_(cfg.profesionales);
-  const nuevoPin = String(cfg.pin || '').trim() || c.pin;
+  const pinPedido = String(cfg.pin || '').trim();
+  if (pinPedido && !pinValido_(pinPedido)) throw new Error('El PIN nuevo tiene que tener entre ' + PIN_MIN + ' y 20 caracteres, sin espacios.');
+  const nuevoPin = pinPedido || c.pin;
+  const clave = cfg.clave == null ? c.clave : String(cfg.clave).trim();
+  if (clave && !claveValida_(clave)) throw new Error('La clave del equipo tiene que tener entre ' + CLAVE_MIN + ' y 40 letras sin tilde, números, - o _ (sin espacios).');
   const params = filasParams_(c, {
+    clave: clave,
     centro: cfg.centro == null ? c.centro : limpiarTexto_(cfg.centro, 80),
     enfermeras: num_(cfg.enfermeras),
     huecos: num_(cfg.huecos),
@@ -400,7 +432,7 @@ function guardarConfig(pin, cfg) {
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, pinCambiado: nuevoPin !== c.pin };
+  return { ok: true, pinCambiado: nuevoPin !== c.pin, claveCambiada: clave !== c.clave };
 }
 
 /* --------------------------- Stock ------------------------------- */
@@ -1326,7 +1358,7 @@ function limpiarTexto_(s, max) {
 function listaProfesionales_(lista) {
   const vistos = {};
   return (lista || [])
-    .map(function (s) { return String(s || '').trim().slice(0, 60); })
+    .map(function (s) { return limpiarTexto_(s, 60); })
     .filter(function (s) { if (!s || vistos[s.toLowerCase()]) return false; vistos[s.toLowerCase()] = true; return true; })
     .slice(0, 200)
     .map(function (n) { return [n, 'Sí']; });
@@ -1348,7 +1380,8 @@ function filasParams_(c, cambios) {
     [P.fin, o.fin || ''],
     [P.correo, o.correo || ''],
     [P.avisoCorreo, o.avisoCorreo ? 'Sí' : 'No'],
-    [P.avisoHora, String(o.avisoHora == null ? 9 : o.avisoHora)]
+    [P.avisoHora, String(o.avisoHora == null ? 9 : o.avisoHora)],
+    [P.clave, o.clave || '']
   ];
 }
 
@@ -1392,8 +1425,36 @@ function laborables_(a, b) {
 function sumarLaborables_(f, n) { let k = 0; while (k < n) { f = sumarDias_(f, 1); if (esLaborable_(f)) k++; } return f; }
 function restarLaborables_(f, n) { let k = 0; while (k < n) { f = sumarDias_(f, -1); if (esLaborable_(f)) k++; } return f; }
 
+/**
+ * Comprueba el PIN del panel. Tras PIN_INTENTOS fallos seguidos, el panel queda bloqueado
+ * PIN_BLOQUEO_MIN minutos (también para el PIN bueno), para que no se pueda adivinar probando.
+ */
+const PIN_MIN = 6;
+const PIN_INTENTOS = 5;
+const PIN_BLOQUEO_MIN = 15;
 function comprobarPin_(c, pin) {
-  if (c.pin && String(pin == null ? '' : pin).trim() !== c.pin) throw new Error('PIN incorrecto');
+  if (!c.pin) return;
+  const cache = CacheService.getScriptCache();
+  const hasta = Number(cache.get('pin_bloqueo') || 0);
+  if (hasta > Date.now()) {
+    throw new Error('PIN bloqueado por demasiados intentos fallidos. Prueba dentro de ' + Math.ceil((hasta - Date.now()) / 60000) + ' min.');
+  }
+  if (String(pin == null ? '' : pin).trim() === c.pin) {
+    if (cache.get('pin_fallos')) cache.remove('pin_fallos');
+    return;
+  }
+  const fallos = Number(cache.get('pin_fallos') || 0) + 1;
+  if (fallos >= PIN_INTENTOS) {
+    cache.put('pin_bloqueo', String(Date.now() + PIN_BLOQUEO_MIN * 60000), PIN_BLOQUEO_MIN * 60);
+    cache.remove('pin_fallos');
+    throw new Error('PIN incorrecto. Panel bloqueado ' + PIN_BLOQUEO_MIN + ' minutos por demasiados intentos.');
+  }
+  cache.put('pin_fallos', String(fallos), PIN_BLOQUEO_MIN * 60);
+  throw new Error('PIN incorrecto');
+}
+
+function pinValido_(p) {
+  return new RegExp('^\\S{' + PIN_MIN + ',20}$').test(p);
 }
 
 function esPinFabrica_(c) { return !c.pin || c.pin === PIN_FABRICA; }
@@ -1514,12 +1575,13 @@ function leerConfig_() {
     huecos: num_(p[P.huecos]),
     dias: Math.min(7, num_(p[P.dias]) || 5),
     pin: String(p[P.pin] == null ? '' : p[P.pin]).trim(),
-    porProfesional: !esNo(p[P.porProf] == null ? 'Sí' : p[P.porProf]),
+    porProfesional: !esNo(p[P.porProf] == null ? 'No' : p[P.porProf]),
     inicio: fechaTxt_(p[P.inicio]),
     fin: fechaTxt_(p[P.fin]),
     correo: String(p[P.correo] == null ? '' : p[P.correo]).trim(),
     avisoCorreo: !esNo(p[P.avisoCorreo] == null ? 'No' : p[P.avisoCorreo]),
     avisoHora: horaAviso_(p[P.avisoHora]),
+    clave: String(p[P.clave] == null ? '' : p[P.clave]).trim(),
     vacunas: vacunas,
     profesionales: profesionales
   };
@@ -1530,8 +1592,33 @@ function leerRegistro_() {
   const h = libro_().getSheetByName(H_REG);
   const n = h.getLastRow() - 1;
   if (n <= 0) return [];
+  return filasRegistro_(h.getRange(2, 1, n, 7).getValues());
+}
+
+/**
+ * Lee solo el final del registro, por bloques, hasta llegar a filas anteriores a «fecha».
+ * Las filas se añaden al final, así que las de hoy están abajo (también las que llegan tarde
+ * de un móvil sin conexión). Para el contador, que consulta cada pocos minutos.
+ */
+const BLOQUE_REG = 2000;
+function leerRegistroDesde_(fecha) {
+  const h = libro_().getSheetByName(H_REG);
+  let fin = h.getLastRow();
+  let out = [];
+  while (fin >= 2) {
+    const ini = Math.max(2, fin - BLOQUE_REG + 1);
+    const bloque = filasRegistro_(h.getRange(ini, 1, fin - ini + 1, 7).getValues());
+    out = bloque.concat(out);
+    // Seguir subiendo solo si alguna de las primeras filas del bloque aún es de la fecha buscada o posterior.
+    if (!bloque.slice(0, 20).some(function (r) { return r.fecha >= fecha; })) break;
+    fin = ini - 1;
+  }
+  return out;
+}
+
+function filasRegistro_(valores) {
   const out = [];
-  h.getRange(2, 1, n, 7).getValues().forEach(function (r) {
+  valores.forEach(function (r) {
     if (r[0] === '' || r[0] == null) return;
     const d = r[0] instanceof Date ? r[0] : new Date(r[0]);
     if (isNaN(d.getTime())) return;

@@ -79,6 +79,8 @@
     </div>
   </section>
 
+  <section class="card" id="claveMal" role="alert" hidden style="border-color:var(--err,#b42318);color:var(--err,#b42318);font-weight:600">Este enlace no tiene la clave del equipo correcta, así que no se puede guardar nada. Pide el enlace nuevo del contador a quien coordina la vacunación. Lo que cuentes se queda en este dispositivo y se enviará cuando abras el enlace bueno.</section>
+
   <main id="botones" class="grid"><div class="cargando">Cargando vacunas…</div></main>
 
   <section class="card tot">
@@ -106,8 +108,15 @@
     });
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  var fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Madrid', year:'numeric', month:'2-digit', day:'2-digit'});
-  var fmtHora = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', hour:'2-digit', hour12:false});
+  // Zona horaria: la manda el servidor (constante TZ de Code.gs); mientras tanto, la última conocida.
+  var TZ = 'Europe/Madrid', fmtDia, fmtHora;
+  function ponerTZ(tz){
+    try { new Intl.DateTimeFormat('en-CA', {timeZone: tz}); } catch(e){ tz = 'Europe/Madrid'; }
+    TZ = tz || 'Europe/Madrid';
+    fmtDia = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'});
+    fmtHora = new Intl.DateTimeFormat('es-ES', {timeZone:TZ, hour:'2-digit', hour12:false});
+  }
+  ponerTZ((store.get('vac_cfg', null) || {}).tz);
   function diaDe(ms){ return fmtDia.format(new Date(ms)); }
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 
@@ -117,6 +126,21 @@
   var prefs = store.get('vac_prefs', {});
   var base = {}, baseCentro = {}, extra = {}, extraCentro = {}, baseOk = false;
   var enviando = false, cargando = false, error = null, timerEnvio = null;
+  // Clave del equipo: va en el enlace (…/exec?k=CLAVE). Se recuerda por si se abre luego sin ella.
+  var CLAVE = store.get('vac_clave', '');
+  function leerClave(){
+    return new Promise(function(r){
+      try {
+        google.script.url.getLocation(function(l){
+          var k = l && l.parameter && l.parameter.k;
+          if (k != null && String(k) !== ''){ CLAVE = String(k); store.set('vac_clave', CLAVE); }
+          r();
+        });
+      } catch(e){ r(); }
+    });
+  }
+  function esClave(e){ return /Clave del equipo/.test(String((e && e.message) || e)); }
+  function claveMal(si){ $('claveMal').hidden = !si; }
 
   // ---------- Profesional y turno ----------
   function prof(){
@@ -207,14 +231,14 @@
     var espera = enviando ? new Promise(function(r){ var t = setInterval(function(){ if (!enviando){ clearInterval(t); r(); } }, 100); }) : Promise.resolve();
     return espera.then(function(){
       cargando = true;
-      return run('misHoy', p);
+      return run('misHoy', p, CLAVE);
     }).then(function(r){
       hoy = r.hoy || hoy;
       base = r.mias || {}; baseCentro = r.centro || {};
       extra = pendientes(p); extraCentro = pendientes(null);
       baseOk = true; error = null;
-    }).catch(function(){
-      error = true;
+    }).catch(function(e){
+      error = true; if (esClave(e)) claveMal(true);
       if (!baseOk){ base = {}; baseCentro = {}; extra = pendientes(p); extraCentro = pendientes(null); baseOk = true; }
     }).then(function(){
       cargando = false; pintarNumeros(); pintarEstado(); programarEnvio(0);
@@ -227,14 +251,14 @@
     if (enviando || cargando || !cola.length){ pintarEstado(); return; }
     enviando = true; pintarEstado();
     var lote = cola.slice(0, 200);
-    run('registrar', lote).then(function(r){
+    run('registrar', lote, CLAVE).then(function(r){
       var hechos = {};
       (r.guardados || []).concat(r.rechazados || []).forEach(function(id){ hechos[id] = true; });
       cola = cola.filter(function(e){ return !hechos[e.id]; });
       store.set('vac_cola', cola);
-      if (r.rechazados && r.rechazados.length) aviso('Alguna vacuna ya no existe en la configuración y no se guardó.');
-      error = null;
-    }).catch(function(){ error = true; }).then(function(){
+      if (r.rechazados && r.rechazados.length) aviso('Algún toque no se guardó: la vacuna ya no existe o la fecha es demasiado antigua.');
+      error = null; claveMal(false);
+    }).catch(function(e){ error = true; if (esClave(e)) claveMal(true); }).then(function(){
       enviando = false; pintarEstado();
       if (cola.length) programarEnvio(error ? 15000 : 50);
     });
@@ -290,7 +314,7 @@
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) cargarBase(); });
 
   function pintarFecha(){
-    $('fecha').textContent = new Intl.DateTimeFormat('es-ES', {timeZone:'Europe/Madrid', weekday:'long', day:'numeric', month:'long'}).format(new Date());
+    $('fecha').textContent = new Intl.DateTimeFormat('es-ES', {timeZone:TZ, weekday:'long', day:'numeric', month:'long'}).format(new Date());
   }
 
   function pintarCentro(c){
@@ -301,15 +325,18 @@
   // ---------- Inicio ----------
   pintarFecha(); pintarEstado();
   function iniciar(){
-    run('datosContador').then(function(d){
+    leerClave().then(function(){ return run('datosContador', CLAVE); }).then(function(d){
+      claveMal(false);
+      if (d.tz && d.tz !== TZ){ ponerTZ(d.tz); pintarFecha(); }
       cfg = d; hoy = d.hoy || hoy;
       store.set('vac_cfg', d);
       pintarCentro(d.centro);
       montarProfesionales(); pintarBotones(); pintarNumeros();
       return cargarBase();
-    }).catch(function(){
+    }).catch(function(e){
       var guardada = store.get('vac_cfg', null);
       error = true; pintarEstado();
+      if (esClave(e)) claveMal(true);
       if (guardada && !cfg){
         cfg = guardada; pintarCentro(cfg.centro); montarProfesionales(); pintarBotones();
         extra = pendientes(prof()); extraCentro = pendientes(null); baseOk = true; pintarNumeros();

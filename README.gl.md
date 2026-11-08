@@ -44,8 +44,22 @@ Contador de doses para campañas de vacinación en centros de saúde, feito con 
 - **Non se gardan datos de pacientes.** Cada toque garda unicamente: momento, quenda, nome do profesional, vacina e +1/−1. O stock garda vacina, tipo de movemento, cantidade e unha nota opcional (non escribas aí datos de pacientes). A previsión só usa cifras agregadas: poboación e vacinados por grupo.
 - O resumo semanal envíase desde a conta de Google de quen instala a aplicación, só aos correos que poñas.
 - Se conectas Telegram, o aviso de pedido (nome do centro, vacinas e cantidades, sen datos de pacientes) pasa polos servidores de Telegram. O token do bot gárdase nas propiedades do script, non na folla.
+- **Seguridade do panel:** o PIN novo ten que ter polo menos 6 caracteres e, tras 5 intentos fallidos, o panel bloquéase 15 minutos. O que se escribe nos formularios gárdase sempre como texto, nunca como fórmula.
+
+### Datos do equipo (RGPD)
+
+Aínda que non haxa datos de pacientes, **o rexistro di quen vacina, cando e canto**: son datos persoais do persoal. Antes de usalo:
+
+1. **Informa o equipo** do que se rexistra e para que (organizar a campaña e o stock, non avaliar a ninguén). Abaixo tes un modelo de nota.
+2. **A vista por profesional vén desactivada.** Actívaa só se hai un motivo claro e o persoal o sabe, e nunca a uses para medir o rendemento de ninguén.
+3. **Consulta co delegado de protección de datos** do teu servizo de saúde. Se tedes Google Workspace corporativo, instálao aí e non nun Gmail persoal. Os datos gárdanse en servidores de Google, que poden estar fóra da UE.
+4. Ao rematar a campaña, garda os totais que precises e **borra ou anonimiza** a columna *Profesional* do *Registro*.
+
+> **Modelo de nota para o equipo**
+> Durante a campaña de vacinación usaremos un contador para rexistrar as doses que se poñen. Cada toque garda o momento, a quenda, o nome de quen vacina, a vacina e se suma ou resta. **Non se rexistra ningún dato de pacientes.** Os datos úsanse só para organizar a campaña (doses necesarias, capacidade e pedidos de vacinas) e non para avaliar a ninguén. Están nunha folla de cálculo do centro á que só accede [quen coordina]. Conservaranse ata [data] e despois borraranse ou anonimizaranse. Se tes dúbidas ou queres exercer os teus dereitos, fala con [quen coordina] ou co delegado de protección de datos.
 - A aplicación execútase coa conta de quen a instala e só accede a esa folla.
 - O panel está protexido cun PIN. A ligazón do contador pode abrila quen a teña: compártea só co equipo.
+- **Clave do equipo (opcional):** en *Configuración del centro* podes poñer unha clave. Entón o contador só funciona coa ligazón que a leva ao final (`…/exec?k=CLAVE`), e quen teña a ligazón sen ela non pode anotar doses nin ver os nomes do equipo. Ninguén a escribe: vai dentro da ligazón que copias con **Copiar enlace del contador**. Se a cambias, a ligazón vella deixa de funcionar ao momento e hai que poñer a nova en cada ordenador e móbil. O que se conte mentres tanto queda no dispositivo e envíase ao poñer a ligazón boa.
 - Podes revisar, corrixir ou borrar calquera dato directamente na folla.
 
 ## Instalación (uns 10 minutos, no ordenador)
@@ -75,7 +89,7 @@ Precisas unha conta de Google (vale unha de Gmail).
 8. Despois, en **Configuración del centro**, completa: enfermeiras/os que vacinan, ocos por día, días de vacinación, doses necesarias por semana e stock mínimo de cada vacina.
 9. Para a previsión, en **Campaña y previsión**: carga un modelo (ou crea os grupos) e pon a **poboación** de cada grupo.
 
-> **Fuso horario.** Está posto para a España peninsular (`Europe/Madrid`). En Canarias, cambia `Europe/Madrid` por `Atlantic/Canary` en `Code.gs`, `Contador.html`, `Panel.html` e no contador flotante.
+> **Fuso horario.** Está posto para a España peninsular (`Europe/Madrid`). En Canarias, cambia a constante `TZ` ao comezo de `Code.gs` por `'Atlantic/Canary'`. Só aí: o contador, o panel e o contador flotante recíbena do servidor.
 
 ### Contador flotante (opcional)
 
@@ -83,7 +97,7 @@ Precisas unha conta de Google (vale unha de Gmail).
 2. Ábreo con **Google Chrome** ou **Microsoft Edge** (actualizados). A primeira vez pide a **ligazón do contador** (o URL que remata en `/exec`): pégaa e preme **Guardar y conectar**. O navegador lémbraa.
 3. Escolle o teu nome e quenda e preme **Abrir contador flotante**.
 
-Se prefires que non pregunte nada (por exemplo, para repartilo nun USB a todo o equipo), ábreo co Bloc de notas, pon a túa ligazón no lugar de `PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB` e garda.
+Se prefires que non pregunte nada (por exemplo, para repartilo nun USB a todo o equipo), ábreo co Bloc de notas, pon a túa ligazón no lugar de `PEGA_AQUI_LA_URL_DE_TU_APLICACION_WEB` e garda. Se usas clave do equipo, pega a ligazón completa, co `?k=…` do final. Se un día cambias a clave, o contador flotante avísao: preme **Cambiar el enlace del contador** e pega a nova.
 
 ## Uso
 
@@ -190,7 +204,18 @@ Os datos non se perden: ao abrir o contador ou o panel, a folla ponse ao día so
 apps-script/   Code.gs, Contador.html e Panel.html (o que se pega en Apps Script)
 widget/        contador-flotante.html (opcional)
 docs/capturas/ imaxes para este README
+tests/         probas automáticas (node tests/ejecutar.js)
 ```
+
+## Probas
+
+Se tes [Node.js](https://nodejs.org/), desde o cartafol do proxecto:
+
+```bash
+node tests/ejecutar.js
+```
+
+Cargan `Code.gs` cunha folla de cálculo simulada e comproban o contador, a migración de follas antigas, o stock, a previsión, os pedidos, os avisos e a seguridade (PIN, clave do equipo, fórmulas, duplicados e datas).
 
 ## Consellos
 
