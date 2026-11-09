@@ -25,7 +25,7 @@ const H_VAC = 'Vacunas';
 const H_PRO = 'Profesionales';
 const H_STK = 'Stock';
 
-const CAB_REG = ['Momento', 'Fecha', 'Semana', 'Turno', 'Profesional', 'Vacuna', 'Cambio', 'Id'];
+const CAB_REG = ['Momento', 'Fecha', 'Semana', 'Turno', 'Profesional', 'Vacuna', 'Cambio', 'Id', 'Grupo'];
 const CAB_CFG = ['Parámetro', 'Valor'];
 const CAB_VAC = ['Vacuna', 'Dosis necesarias por semana', 'Activa (Sí/No)', 'Stock mínimo'];
 const CAB_PRO = ['Nombre', 'Activo (Sí/No)'];
@@ -163,13 +163,44 @@ function datosContador(k) {
     centro: c.centro,
     tz: TZ,
     vacunas: c.vacunas.filter(function (v) { return v.activa; }).map(function (v) { return v.nombre; }),
+    botones: botonesContador_(c),
     profesionales: c.profesionales,
     hoy: hoy_()
   };
 }
 
 /**
- * Guarda una lista de toques. Cada toque: {id, momento, profesional, turno, vacuna, cambio}.
+ * Botones del contador: uno por vacuna; si una vacuna está en varios grupos activos
+ * (p. ej. Vaxigrip en «60–64 años» y en «Menores de 60»), uno por cada grupo, para que
+ * la dosis quede apuntada en su grupo y la previsión no tenga que repartirla a ojo.
+ *   [{vacuna, grupo}]   grupo '' = sin grupo (la vacuna está en uno o en ninguno).
+ */
+function botonesContador_(c) {
+  const grupos = leerGrupos_().filter(function (g) { return g.activo; });
+  const out = [];
+  c.vacunas.filter(function (v) { return v.activa; }).forEach(function (v) {
+    const kv = v.nombre.toLowerCase();
+    const suyos = grupos.filter(function (g) { return g.vacunas.some(function (x) { return x.toLowerCase() === kv; }); });
+    if (suyos.length < 2) out.push({ vacuna: v.nombre, grupo: '' });
+    else suyos.forEach(function (g) { out.push({ vacuna: v.nombre, grupo: g.nombre }); });
+  });
+  return out;
+}
+
+/** Grupo de un toque: el nombre exacto de un grupo activo que usa esa vacuna, o ''. */
+function grupoDeToque_(grupos, vac, g) {
+  const kg = String(g == null ? '' : g).trim().toLowerCase();
+  if (!kg) return '';
+  const kv = vac.toLowerCase();
+  const x = grupos.filter(function (y) {
+    return y.nombre.toLowerCase() === kg && y.vacunas.some(function (v) { return v.toLowerCase() === kv; });
+  })[0];
+  return x ? x.nombre : '';
+}
+
+/**
+ * Guarda una lista de toques. Cada toque: {id, momento, profesional, turno, vacuna, cambio, grupo}.
+ * «grupo» es opcional: si no es un grupo activo que usa esa vacuna, se guarda vacío.
  * Devuelve los id guardados (también los repetidos, para que el móvil los borre de su cola)
  * y los rechazados (vacuna que ya no existe, id o fecha no válidos).
  *   - Repetidos: se comprueba el Id en la hoja (últimas IDS_REVISADOS filas), no solo en la caché.
@@ -185,11 +216,13 @@ function registrar(lista, k) {
   lista = lista.slice(0, 500);
   const vacs = {};
   c.vacunas.forEach(function (v) { vacs[v.nombre] = true; });
+  const grupos = leerGrupos_().filter(function (g) { return g.activo; });
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const h = libro_().getSheetByName(H_REG);
+    if (h.getMaxColumns() < CAB_REG.length) h.insertColumnsAfter(h.getMaxColumns(), CAB_REG.length - h.getMaxColumns());
     const ultima = h.getLastRow();
     const yaEstan = {};
     if (ultima > 1) {
@@ -219,7 +252,7 @@ function registrar(lista, k) {
       const turno = e.turno === 'Tarde' ? 'Tarde' : 'Mañana';
       const fecha = Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
 
-      filas.push([d, fecha, semanaDeFecha_(fecha), turno, prof, vac, cambio, id]);
+      filas.push([d, fecha, semanaDeFecha_(fecha), turno, prof, vac, cambio, id, grupoDeToque_(grupos, vac, e.grupo)]);
       guardados.push(id);
       yaEstan[id] = true;
     });
@@ -237,6 +270,7 @@ function misHoy(profesional, k) {
   const hoy = hoy_();
   const prof = String(profesional || '').trim();
   const mias = {};
+  const miasG = {}; // por botón: «vacuna|grupo»
   const centro = {};
   let ultima = 0;
   leerRegistroDesde_(hoy).forEach(function (r) {
@@ -244,10 +278,12 @@ function misHoy(profesional, k) {
     centro[r.vacuna] = (centro[r.vacuna] || 0) + r.cambio;
     if (r.profesional === prof) {
       mias[r.vacuna] = (mias[r.vacuna] || 0) + r.cambio;
+      const kb = r.vacuna + '|' + r.grupo;
+      miasG[kb] = (miasG[kb] || 0) + r.cambio;
       if (r.cambio > 0 && r.t > ultima) ultima = r.t;
     }
   });
-  return { hoy: hoy, mias: mias, centro: centro, ultima: ultima };
+  return { hoy: hoy, mias: mias, miasG: miasG, centro: centro, ultima: ultima };
 }
 
 /* --------------------------- Panel ------------------------------- */
@@ -841,7 +877,8 @@ function proximosRepartos_(reps, hoy, ahoraHM, cuantos) {
 /**
  * Previsión.
  *   Vacunados por grupo = último dato oficial + dosis del contador posteriores.
- *   Cada dosis cuenta para los grupos que usan esa vacuna y ya han empezado;
+ *   Una dosis apuntada con su grupo (botón «vacuna · grupo» del contador) cuenta solo para ese grupo.
+ *   Si no lleva grupo, cuenta para los grupos que usan esa vacuna y ya han empezado;
  *   si son varios, se reparte en proporción a su población diana (población × objetivo).
  *   Ritmo = dosis de los últimos 14 días ÷ días laborables.
  *   Consumo previsto de cada vacuna = ritmo actual + ritmo que necesitarán los grupos que aún no empezaron.
@@ -879,12 +916,16 @@ function calcularPrevision_(c) {
     if (!cache[clave]) cache[clave] = grupos.filter(function (g) { return g.vk.indexOf(v) >= 0 && (!g.desde || g.desde <= f); });
     return cache[clave];
   };
+  const porNombre = {};
+  grupos.forEach(function (g) { porNombre[k(g.nombre)] = g; });
   const recientes = {};
   reg.forEach(function (r) {
     if ((inicio && r.fecha < inicio) || (fin && r.fecha > fin)) return;
     const v = k(r.vacuna);
     if (r.fecha >= desde14) recientes[v] = (recientes[v] || 0) + r.cambio;
-    const el = elegibles(v, r.fecha);
+    // Si la dosis se apuntó con su grupo, cuenta entera para ese grupo.
+    const gr = r.grupo ? porNombre[k(r.grupo)] : null;
+    const el = gr && gr.vk.indexOf(v) >= 0 ? [gr] : elegibles(v, r.fecha);
     if (!el.length) return;
     const tot = el.reduce(function (s, g) { return s + g.peso; }, 0);
     el.forEach(function (g) {
@@ -1513,6 +1554,13 @@ function migrar_() {
     const cab = hv.getRange(1, 1, 1, CAB_VAC.length).getValues()[0];
     if (String(cab[3]).trim() === '') hv.getRange(1, 4).setValue(CAB_VAC[3]).setFontWeight('bold');
 
+    // Registro: columna «Grupo» (v1.3)
+    const hg = ss.getSheetByName(H_REG);
+    if (hg) {
+      if (hg.getMaxColumns() < CAB_REG.length) hg.insertColumnsAfter(hg.getMaxColumns(), CAB_REG.length - hg.getMaxColumns());
+      if (String(hg.getRange(1, 9).getValues()[0][0]).trim() === '') hg.getRange(1, 9).setValue(CAB_REG[8]).setFontWeight('bold');
+    }
+
     // Repartos: columna «Vacunas» (v1.1)
     const hr = ss.getSheetByName(H_REP);
     if (hr) {
@@ -1592,7 +1640,7 @@ function leerRegistro_() {
   const h = libro_().getSheetByName(H_REG);
   const n = h.getLastRow() - 1;
   if (n <= 0) return [];
-  return filasRegistro_(h.getRange(2, 1, n, 7).getValues());
+  return filasRegistro_(h.getRange(2, 1, n, colsReg_(h)).getValues());
 }
 
 /**
@@ -1607,7 +1655,7 @@ function leerRegistroDesde_(fecha) {
   let out = [];
   while (fin >= 2) {
     const ini = Math.max(2, fin - BLOQUE_REG + 1);
-    const bloque = filasRegistro_(h.getRange(ini, 1, fin - ini + 1, 7).getValues());
+    const bloque = filasRegistro_(h.getRange(ini, 1, fin - ini + 1, colsReg_(h)).getValues());
     out = bloque.concat(out);
     // Seguir subiendo solo si alguna de las primeras filas del bloque aún es de la fecha buscada o posterior.
     if (!bloque.slice(0, 20).some(function (r) { return r.fecha >= fecha; })) break;
@@ -1615,6 +1663,9 @@ function leerRegistroDesde_(fecha) {
   }
   return out;
 }
+
+/** Columnas que se leen del Registro: hasta «Grupo» si la hoja la tiene. */
+function colsReg_(h) { return Math.min(CAB_REG.length, Math.max(7, h.getMaxColumns())); }
 
 function filasRegistro_(valores) {
   const out = [];
@@ -1630,7 +1681,8 @@ function filasRegistro_(valores) {
       turno: String(r[3] || 'Mañana'),
       profesional: String(r[4] || 'Sin nombre'),
       vacuna: String(r[5] || ''),
-      cambio: Number(r[6]) || 0
+      cambio: Number(r[6]) || 0,
+      grupo: String(r[8] == null ? '' : r[8]).trim()
     });
   });
   return out;

@@ -168,7 +168,7 @@
           <span><i class="pocas"></i>Al ritmo actual no llega antes del fin de campaña</span>
           <span><i class="gris"></i>Todavía no ha empezado</span>
         </div>
-        <p class="nota">Vacunados = último dato oficial del grupo + dosis del contador desde entonces. Cada dosis cuenta para los grupos que usan esa vacuna y ya empezaron; si son varios, se reparte según su población diana. Es una estimación: mete el dato oficial cuando lo tengas (en %, se calcula con la población del grupo). «Datos hasta el día» es el último día que incluye el informe; las dosis del contador posteriores se suman.</p>
+        <p class="nota">Vacunados = último dato oficial del grupo + dosis del contador desde entonces. Si una vacuna está en varios grupos, el contador muestra un botón por grupo (p. ej. «Vaxigrip · 60–64 años» y «Vaxigrip · Menores de 60») y cada dosis cuenta para el grupo pulsado. Las dosis sin grupo (de antes de este cambio) se reparten según la población diana de los grupos que usan esa vacuna. Es una estimación: mete el dato oficial cuando lo tengas (en %, se calcula con la población del grupo). «Datos hasta el día» es el último día que incluye el informe; las dosis del contador posteriores se suman.</p>
         <form id="fCob" class="stkf" novalidate>
           <div><label for="oGru">Grupo</label><select id="oGru"></select></div>
           <div><label for="oTipo">Dato en</label><select id="oTipo"><option value="pct">Cobertura (%)</option><option value="num">Vacunados (número)</option></select></div>
@@ -254,7 +254,7 @@
         </div>
         <div class="tw"><table class="vtab"><thead><tr><th>Grupo</th><th>Población</th><th>Objetivo %</th><th>Desde</th><th>Vacunas</th><th>Activo</th><th></th></tr></thead><tbody id="kGru"></tbody></table></div>
         <button class="btn" id="kAdd" type="button" style="margin-top:8px">Añadir grupo</button>
-        <p class="nota">Vacunas: los nombres tal como están en la lista de vacunas, separados por comas. Objetivo vacío o 0 = grupo sin objetivo de cobertura.</p>
+        <p class="nota">Vacunas: los nombres tal como están en la lista de vacunas, separados por comas. Objetivo vacío o 0 = grupo sin objetivo de cobertura. Si pones la misma vacuna en varios grupos, el contador mostrará un botón para cada grupo: así se sabe a qué grupo va cada dosis. Un grupo sin población (p. ej. «Menores de 60») solo cuenta las dosis.</p>
 
         <h2 style="margin-top:16px">Días de reparto</h2>
         <div id="kRep" class="sub"></div>

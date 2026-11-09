@@ -104,7 +104,7 @@ Se prefires que non pregunte nada (por exemplo, para repartilo nun USB a todo o 
 ### Contador
 1. Abre a ligazón do contador (no móbil: *Engadir á pantalla de inicio*).
 2. Escolle o teu nome e a quenda. Lémbranse para a próxima vez.
-3. Preme a vacina cada vez que a poñas; se te equivocas, preme **−1**.
+3. Preme a vacina cada vez que a poñas; se te equivocas, preme **−1**. Se unha vacina está en varios grupos da campaña, sae un botón por grupo (por exemplo, *Vaxigrip · 60–64 anos* e *Vaxigrip · Menores de 60*): preme o do grupo desa persoa.
 4. Arriba á dereita verás **✓ Guardado**, ou cantos toques quedan pendentes de enviar. Non peches a páxina mentres haxa pendentes.
 
 ### Panel
@@ -154,7 +154,7 @@ Na aplicación os nomes dos grupos están en castelán. Días de reparto: do 13/
 Se unha vacina se pide con **outro calendario** (por exemplo, a COVID), engade unha fila na lapela *Repartos* co seu nome na columna **Vacunas**. Exemplo: desde 13/10/2026 ata 31/12/2026, días `mar, jue`, antelación `0` (pídese o mesmo día do reparto), hora límite `12:00`, vacinas `COVID-19`. As filas coa columna *Vacunas* baleira valen para todas as demais.
 
 **2. Como se calcula** (son estimacións):
-- **Vacinados por grupo** = último **dato oficial** do grupo (se o metes) + doses do contador desde entón. Cada dose conta para os grupos que usan esa vacina e xa comezaron; se son varios (por exemplo, Vaxigrip), repártese segundo a poboación diana de cada un. Así o contador das enfermeiras non cambia.
+- **Vacinados por grupo** = último **dato oficial** do grupo (se o metes) + doses do contador desde entón. Se unha vacina está en varios grupos, o contador amosa un botón por grupo e cada dose conta para o grupo premido (desde a v1.3). As doses sen grupo (anteriores á v1.3 ou dun contador antigo) contan para os grupos que usan esa vacina e xa comezaron, repartidas segundo a poboación diana de cada un. Un grupo sen poboación (por exemplo, *Menores de 60*) só conta doses e consumo, sen cobertura.
 - **Dato oficial**: cando teñas o informe de coberturas, mete a **cobertura (%)** ou os vacinados de cada grupo e a data ata a que chega o informe. Corrixe a estimación igual que un reconto corrixe o stock, e o contador suma as doses posteriores a esa data. Serve tamén para comezar a usar a app a metade de campaña.
 - **Ritmo** = doses dos últimos 14 días ÷ días laborables. **Chega ao obxectivo** = data estimada se se mantén o ritmo. **Necesario / día** = o que falta ÷ días laborables que quedan.
 - **Pedido suxerido** = consumo previsto ata o reparto seguinte + stock mínimo − stock actual, sen pasar do que falta para acabar a campaña. O consumo previsto suma o ritmo de cada grupo ata que chega ao seu obxectivo e os grupos que aínda non comezaron. Se xa tes un pedido en camiño, réstao.
@@ -189,7 +189,7 @@ Os datos non se perden: ao abrir o contador ou o panel, a folla ponse ao día so
 
 | Lapela | Contido |
 |---|---|
-| Registro | Unha fila por toque: momento, data, semana, quenda, profesional, vacina, +1/−1 |
+| Registro | Unha fila por toque: momento, data, semana, quenda, profesional, vacina, +1/−1, id, grupo (se a vacina está en varios grupos) |
 | Configuración | Nome do centro, capacidade, PIN do panel… |
 | Vacunas | Vacina, doses necesarias por semana, activa, stock mínimo |
 | Profesionales | Nomes que saen no contador |

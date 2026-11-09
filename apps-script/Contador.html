@@ -40,6 +40,7 @@
   .mas:active{transform:scale(.97)} .mas:focus-visible{outline:3px solid var(--tx);outline-offset:-3px}
   .mas.flash{filter:brightness(1.25)}
   .nom{font-weight:700;font-size:1.05rem;text-shadow:0 1px 1px rgba(0,0,0,.2)}
+  .gru{font-size:.82rem;font-weight:700;background:rgba(0,0,0,.22);border-radius:999px;padding:1px 9px;margin-top:2px}
   .num{font-size:2.6rem;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
   .mas1{font-size:.8rem;opacity:.9;font-weight:600}
   .menos{font:inherit;font-weight:600;border:0;border-top:1px solid var(--bd);background:var(--card);color:var(--mut);padding:9px;cursor:pointer}
@@ -88,7 +89,7 @@
     <div><b id="totCentro">–</b><span>dosis del centro hoy</span></div>
   </section>
 
-  <p class="ayuda">Pulsa la vacuna cada vez que la pongas. Si te equivocas, pulsa «−1». Se guarda solo al momento; si se corta la conexión, lo envía en cuanto vuelva (no cierres la página hasta ver «Guardado»).</p>
+  <p class="ayuda">Pulsa la vacuna cada vez que la pongas. Si una vacuna sale varias veces con un grupo debajo (p. ej. «Vaxigrip · 60–64 años»), pulsa la del grupo de esa persona. Si te equivocas, pulsa «−1». Se guarda solo al momento; si se corta la conexión, lo envía en cuanto vuelva (no cierres la página hasta ver «Guardado»).</p>
 </div>
 <div class="aviso" id="aviso" hidden></div>
 
@@ -177,30 +178,43 @@
   }
 
   // ---------- Recuentos ----------
-  function pendientes(filtroProf){
+  // Cada botón es una vacuna o, si la vacuna está en varios grupos, una vacuna en un grupo.
+  // Clave de botón: «vacuna|grupo» (grupo vacío si no hay que elegirlo).
+  function botones(){
+    return (cfg.botones && cfg.botones.length) ? cfg.botones : cfg.vacunas.map(function(v){ return { vacuna: v, grupo: '' }; });
+  }
+  function claveB(v, g){ return v + '|' + (g || ''); }
+  function pendientes(filtroProf, porVacuna){
     var r = {};
     cola.forEach(function(e){
       if (diaDe(e.momento) !== hoy) return;
       if (filtroProf != null && e.profesional !== filtroProf) return;
-      r[e.vacuna] = (r[e.vacuna] || 0) + e.cambio;
+      var k = porVacuna ? e.vacuna : claveB(e.vacuna, e.grupo);
+      r[k] = (r[k] || 0) + e.cambio;
     });
     return r;
   }
-  function valor(v){ return (base[v] || 0) + (extra[v] || 0); }
+  function baseDe(r){
+    if (r.miasG) return r.miasG;
+    var o = {}; Object.keys(r.mias || {}).forEach(function(v){ o[claveB(v, '')] = r.mias[v]; }); return o;
+  }
+  function valor(k){ return (base[k] || 0) + (extra[k] || 0); }
 
   function pintarBotones(){
-    $('botones').innerHTML = cfg.vacunas.map(function(v, i){
+    $('botones').innerHTML = botones().map(function(b, i){
+      var txt = b.vacuna + (b.grupo ? ' (' + b.grupo + ')' : '');
       return '<div class="vac" style="--c:' + COLORES[i % COLORES.length] + '">' +
-        '<button type="button" class="mas" data-v="' + esc(v) + '" aria-label="Sumar una dosis de ' + esc(v) + '">' +
-          '<span class="nom">' + esc(v) + '</span><span class="num">0</span><span class="mas1">+1</span></button>' +
-        '<button type="button" class="menos" data-v="' + esc(v) + '" aria-label="Restar una dosis de ' + esc(v) + '">−1</button></div>';
+        '<button type="button" class="mas" data-i="' + i + '" aria-label="Sumar una dosis de ' + esc(txt) + '">' +
+          '<span class="nom">' + esc(b.vacuna) + '</span>' + (b.grupo ? '<span class="gru">' + esc(b.grupo) + '</span>' : '') +
+          '<span class="num">0</span><span class="mas1">+1</span></button>' +
+        '<button type="button" class="menos" data-i="' + i + '" aria-label="Restar una dosis de ' + esc(txt) + '">−1</button></div>';
     }).join('') || '<div class="cargando">No hay vacunas activas. Revisa la hoja «Vacunas».</div>';
   }
   function pintarNumeros(){
-    var total = 0, totalC = 0;
+    var total = 0, totalC = 0, bs = botones();
     document.querySelectorAll('.vac').forEach(function(el){
-      var v = el.querySelector('.mas').getAttribute('data-v');
-      var n = valor(v);
+      var b = bs[Number(el.querySelector('.mas').getAttribute('data-i'))];
+      var n = b ? valor(claveB(b.vacuna, b.grupo)) : 0;
       total += n;
       el.querySelector('.num').textContent = baseOk ? n : '…';
       el.querySelector('.menos').disabled = !baseOk || n <= 0;
@@ -234,12 +248,12 @@
       return run('misHoy', p, CLAVE);
     }).then(function(r){
       hoy = r.hoy || hoy;
-      base = r.mias || {}; baseCentro = r.centro || {};
-      extra = pendientes(p); extraCentro = pendientes(null);
+      base = baseDe(r); baseCentro = r.centro || {};
+      extra = pendientes(p); extraCentro = pendientes(null, true);
       baseOk = true; error = null;
     }).catch(function(e){
       error = true; if (esClave(e)) claveMal(true);
-      if (!baseOk){ base = {}; baseCentro = {}; extra = pendientes(p); extraCentro = pendientes(null); baseOk = true; }
+      if (!baseOk){ base = {}; baseCentro = {}; extra = pendientes(p); extraCentro = pendientes(null, true); baseOk = true; }
     }).then(function(){
       cargando = false; pintarNumeros(); pintarEstado(); programarEnvio(0);
     });
@@ -264,7 +278,9 @@
     });
   }
 
-  function tocar(vac, cambio){
+  function tocar(i, cambio){
+    var bt = botones()[i]; if (!bt) return;
+    var vac = bt.vacuna, k = claveB(vac, bt.grupo);
     var p = prof();
     if (!p){
       $('quien').classList.add('falta');
@@ -272,23 +288,23 @@
       (!$('prof').hidden ? $('prof') : $('profTxt')).focus();
       return;
     }
-    if (cambio < 0 && valor(vac) <= 0) return;
-    var e = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: vac, cambio: cambio };
+    if (cambio < 0 && valor(k) <= 0) return;
+    var e = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: vac, grupo: bt.grupo || '', cambio: cambio };
     cola.push(e); store.set('vac_cola', cola);
-    extra[vac] = (extra[vac] || 0) + cambio;
+    extra[k] = (extra[k] || 0) + cambio;
     extraCentro[vac] = (extraCentro[vac] || 0) + cambio;
     pintarNumeros(); pintarEstado();
     if (navigator.vibrate) try { navigator.vibrate(cambio > 0 ? 25 : [15, 40, 15]); } catch(x){}
-    var b = document.querySelector('.mas[data-v="' + CSS.escape(vac) + '"]');
+    var b = document.querySelector('.mas[data-i="' + i + '"]');
     if (b){ b.classList.add('flash'); setTimeout(function(){ b.classList.remove('flash'); }, 160); }
-    if (cambio < 0) aviso('Restada una dosis de ' + vac);
+    if (cambio < 0) aviso('Restada una dosis de ' + vac + (bt.grupo ? ' (' + bt.grupo + ')' : ''));
     programarEnvio(400);
   }
 
   // ---------- Eventos ----------
   $('botones').addEventListener('click', function(ev){
     var b = ev.target.closest('button'); if (!b || b.disabled) return;
-    tocar(b.getAttribute('data-v'), b.classList.contains('menos') ? -1 : 1);
+    tocar(Number(b.getAttribute('data-i')), b.classList.contains('menos') ? -1 : 1);
   });
   $('prof').addEventListener('change', function(){
     $('profTxt').hidden = this.value !== '__otro';
@@ -339,7 +355,7 @@
       if (esClave(e)) claveMal(true);
       if (guardada && !cfg){
         cfg = guardada; pintarCentro(cfg.centro); montarProfesionales(); pintarBotones();
-        extra = pendientes(prof()); extraCentro = pendientes(null); baseOk = true; pintarNumeros();
+        extra = pendientes(prof()); extraCentro = pendientes(null, true); baseOk = true; pintarNumeros();
         aviso('Sin conexión: puedes seguir contando, se enviará después');
       } else if (!cfg){
         $('botones').innerHTML = '<div class="cargando">No se pudo conectar. Reintentando…</div>';

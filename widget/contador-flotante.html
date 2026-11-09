@@ -35,6 +35,7 @@
   .mas{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;padding:9px 12px;min-height:44px;border-radius:10px;background:var(--c);color:#fff;font-weight:700;user-select:none;-webkit-user-select:none}
   .mas:active,.mas.flash{filter:brightness(1.25)}
   .mas:focus-visible{outline:3px solid var(--tx);outline-offset:1px}
+  .mas .gru{display:block;font-size:.72rem;font-weight:600;opacity:.92;line-height:1.1}
   .mas .num{font-size:1.35rem;font-variant-numeric:tabular-nums}
   .menos{font:inherit;font-weight:700;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--mut);cursor:pointer}
   .menos:disabled{opacity:.35;cursor:default}
@@ -178,33 +179,47 @@
 
   // ---------- Recuentos ----------
   function baseOk(){ var p = prof(); return !!p && baseProf === p && baseDia === hoy; }
+  // Cada botón es una vacuna o, si la vacuna está en varios grupos, una vacuna en un grupo.
+  // Clave de botón: «vacuna|grupo» (grupo vacío si no hay que elegirlo).
+  function botones(){
+    if (!cfg) return [];
+    return (cfg.botones && cfg.botones.length) ? cfg.botones : (cfg.vacunas || []).map(function(v){ return { vacuna: v, grupo: '' }; });
+  }
+  function claveB(v, g){ return v + '|' + (g || ''); }
+  function baseDe(r){
+    if (r.miasG) return r.miasG;
+    var o = {}; Object.keys(r.mias || {}).forEach(function(v){ o[claveB(v, '')] = r.mias[v]; }); return o;
+  }
   function pendientes(p){
     var r = {};
     cola.forEach(function(e){
       if (e.profesional !== p || diaDe(e.momento) !== hoy) return;
-      r[e.vacuna] = (r[e.vacuna] || 0) + e.cambio;
+      var k = claveB(e.vacuna, e.grupo);
+      r[k] = (r[k] || 0) + e.cambio;
     });
     return r;
   }
   function valores(){
     var p = prof(), pen = pendientes(p), b = baseOk() ? base : {}, r = {};
-    (cfg ? cfg.vacunas : []).forEach(function(v){ r[v] = (b[v] || 0) + (pen[v] || 0); });
+    botones().forEach(function(x){ var k = claveB(x.vacuna, x.grupo); r[k] = (b[k] || 0) + (pen[k] || 0); });
     return r;
   }
 
   function pintarFilas(){
-    var vs = cfg.vacunas || [];
-    el.filas.innerHTML = vs.length ? vs.map(function(v, i){
+    var bs = botones();
+    el.filas.innerHTML = bs.length ? bs.map(function(b, i){
+      var txt = b.vacuna + (b.grupo ? ' (' + b.grupo + ')' : '');
       return '<div class="fila" style="--c:' + COLORES[i % COLORES.length] + '">' +
-        '<button type="button" class="mas" data-v="' + esc(v) + '" title="Sumar una dosis de ' + esc(v) + '"><span>' + esc(v) + '</span><span class="num">0</span></button>' +
-        '<button type="button" class="menos" data-v="' + esc(v) + '" title="Restar una dosis de ' + esc(v) + '">−1</button></div>';
+        '<button type="button" class="mas" data-i="' + i + '" title="Sumar una dosis de ' + esc(txt) + '"><span>' + esc(b.vacuna) +
+          (b.grupo ? '<small class="gru">' + esc(b.grupo) + '</small>' : '') + '</span><span class="num">0</span></button>' +
+        '<button type="button" class="menos" data-i="' + i + '" title="Restar una dosis de ' + esc(txt) + '">−1</button></div>';
     }).join('') : '<div class="vacio">No hay vacunas activas. Revisa la hoja «Vacunas».</div>';
   }
   function pintar(){
-    var p = prof(), ok = baseOk() || !conectado, vals = valores(), total = 0;
+    var p = prof(), ok = baseOk() || !conectado, vals = valores(), total = 0, bs = botones();
     el.mNom.textContent = p ? p + ' · ' + turno() : 'Elige tu nombre';
     el.filas.querySelectorAll('.fila').forEach(function(f){
-      var v = f.querySelector('.mas').getAttribute('data-v'), n = vals[v] || 0;
+      var b = bs[Number(f.querySelector('.mas').getAttribute('data-i'))], n = b ? (vals[claveB(b.vacuna, b.grupo)] || 0) : 0;
       total += n;
       f.querySelector('.num').textContent = p ? (ok ? n : '…') : '–';
       f.querySelector('.menos').disabled = !p || n <= 0;
@@ -244,7 +259,7 @@
     if (cola.some(function(e){ return e.profesional === p; })) return; // primero se envía lo pendiente
     api({ api: 'hoy', profesional: p }).then(function(r){
       if (g !== gen || p !== prof()) return;
-      hoy = r.hoy || hoy; base = r.mias || {}; ultSrv = Number(r.ultima) || 0; baseProf = p; baseDia = hoy; error = false;
+      hoy = r.hoy || hoy; base = baseDe(r); ultSrv = Number(r.ultima) || 0; baseProf = p; baseDia = hoy; error = false;
     }).catch(function(e){ error = true; if (esClave(e)) msg(MSG_CLAVE, true); }).then(pintar);
   }
   function enviar(){
@@ -256,7 +271,8 @@
       (r.guardados || []).forEach(function(id){ guard[id] = hechos[id] = true; });
       (r.rechazados || []).forEach(function(id){ hechos[id] = true; });
       lote.forEach(function(e){
-        if (guard[e.id] && e.profesional === baseProf && diaDe(e.momento) === baseDia) base[e.vacuna] = (base[e.vacuna] || 0) + e.cambio;
+        var kb = claveB(e.vacuna, e.grupo);
+        if (guard[e.id] && e.profesional === baseProf && diaDe(e.momento) === baseDia) base[kb] = (base[kb] || 0) + e.cambio;
       });
       cola = cola.filter(function(e){ return !hechos[e.id]; });
       store.set('wid_cola', cola);
@@ -269,16 +285,17 @@
     });
   }
 
-  function tocar(v, c){
+  function tocar(i, c){
+    var bt = botones()[i]; if (!bt) return;
     var p = prof();
     if (!p){ msg('Primero elige tu nombre.', true); return; }
-    if (c < 0 && (valores()[v] || 0) <= 0) return;
-    var ev = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: v, cambio: c };
+    if (c < 0 && (valores()[claveB(bt.vacuna, bt.grupo)] || 0) <= 0) return;
+    var ev = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: bt.vacuna, grupo: bt.grupo || '', cambio: c };
     cola.push(ev);
     store.set('wid_cola', cola);
     if (c > 0){ ultLocal[p] = { t: ev.momento, id: ev.id }; store.set('wid_ult', ultLocal); }
     pintar();
-    var b = el.filas.querySelector('.mas[data-v="' + CSS.escape(v) + '"]');
+    var b = el.filas.querySelector('.mas[data-i="' + i + '"]');
     if (b){ b.classList.add('flash'); setTimeout(function(){ b.classList.remove('flash'); }, 160); }
     enviar();
   }
@@ -290,7 +307,7 @@
       msg('Este navegador no permite ventanas flotantes. Abre este archivo con Google Chrome o Microsoft Edge actualizados. Mientras, puedes usar el contador de abajo.', true);
       return;
     }
-    var n = (cfg.vacunas || []).length;
+    var n = botones().length;
     window.documentPictureInPicture.requestWindow({ width: 250, height: 100 + n * 50 }).then(function(w){
       pip = w;
       var st = w.document.createElement('style');
@@ -307,7 +324,7 @@
   // ---------- Eventos ----------
   el.mini.addEventListener('click', function(ev){
     var b = ev.target.closest('button'); if (!b || b.disabled) return;
-    tocar(b.getAttribute('data-v'), b.classList.contains('menos') ? -1 : 1);
+    tocar(Number(b.getAttribute('data-i')), b.classList.contains('menos') ? -1 : 1);
   });
   el.prof.addEventListener('change', function(){
     el.profTxt.hidden = this.value !== '__otro';
@@ -399,11 +416,13 @@
     api({ api: 'datos' }).then(function(d){
       var primera = !cfg;
       if (d.tz && d.tz !== TZ) ponerTZ(d.tz);
-      cfg = { centro: d.centro || '', tz: d.tz || TZ, vacunas: d.vacunas || [], profesionales: d.profesionales || [] };
+      var antes = JSON.stringify(botones());
+      cfg = { centro: d.centro || '', tz: d.tz || TZ, vacunas: d.vacunas || [], botones: d.botones || null, profesionales: d.profesionales || [] };
       pintarCentro();
       hoy = d.hoy || hoy; conectado = true; error = false;
       store.set('wid_cfg', cfg);
       if (primera || !el.filas.querySelector('.fila')) { montarProfesionales(); pintarFilas(); }
+      else if (JSON.stringify(botones()) !== antes) pintarFilas();
       msg(prof() ? 'Listo. Pulsa «Abrir contador flotante».' : 'Elige tu nombre para empezar.');
       pintar(); enviar(); cargarBase();
     }).catch(function(e){
