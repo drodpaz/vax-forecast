@@ -259,7 +259,7 @@
     var q = cuadricula(), nc = 1 + q.columnas.length;
     if (!q.filas.length){ $('botones').innerHTML = '<div class="cargando">No hay vacunas activas. Revisa la hoja «Vacunas».</div>'; return; }
     var h = '<div class="cua" style="grid-template-columns:minmax(92px,1.1fr) repeat(' + nc + ',1fr)">';
-    if (nc > 1) h += '<div></div>' + ['sola'].concat(q.columnas).map(function(c, j){ return '<div class="ch">' + esc(j ? '+ ' + c : c) + '</div>'; }).join('');
+    if (nc > 1) h += '<div></div>' + ['sola'].concat(q.columnas).map(function(c, j){ return '<div class="ch" title="' + esc(j ? '+ ' + c : 'Solo la vacuna de la fila') + '">' + esc(j ? '+ ' + c : c) + '</div>'; }).join('');
     q.filas.forEach(function(f, i){
       var col = COLORES[i % COLORES.length];
       var sub = f.texto || f.grupo || (f.ambas ? 'gripe + COVID' : '');
