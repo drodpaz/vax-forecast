@@ -1,6 +1,8 @@
 # VaxForecast — Contador de vacunas
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24044549.svg)](https://doi.org/10.5281/zenodo.24044549)
 
+**▶ Presentación y guía: <https://drodpaz.github.io/vax-forecast/>**
+
 *[Ler en galego](README.gl.md)*
 
 Contador de dosis para campañas de vacunación en centros de salud, hecho con **Google Sheets + Apps Script**. Cada enfermera/o pulsa un botón cada vez que pone una vacuna y el panel compara lo puesto con las dosis necesarias, la capacidad del centro y el stock de la nevera.
