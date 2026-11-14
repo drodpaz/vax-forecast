@@ -80,7 +80,7 @@ const PROP_TG_TOKEN = 'TELEGRAM_TOKEN';
 const PROP_TG_CHAT = 'TELEGRAM_CHAT';
 const PROP_TG_NOMBRE = 'TELEGRAM_CHAT_NOMBRE';
 const PROP_AVISO_HECHO = 'AVISO_PEDIDO_ENVIADO';
-const VAC_DEF = [['Gripe', 0, 'Sí', 0, 'Gripe'], ['COVID-19', 0, 'Sí', 0, 'COVID']];
+const VAC_DEF = [['Gripe', 0, 'Sí', 0, 'Gripe'], ['Comirnaty', 0, 'Sí', 0, 'COVID']];
 
 /**
  * Plantillas de campaña. Solo cambian los grupos, las fechas y los repartos;

@@ -100,7 +100,7 @@ G.doGet({ parameter: { p: 'panel' } });
 assert.strictEqual(sheets['Configuración'].d.find(x => x[0] === 'Mostrar datos por profesional (Sí/No)')[1], 'No', 'vista por profesional desactivada en instalaciones nuevas');
 let c = G.comprobarPin('1234');
 assert.strictEqual(c.primerUso, true);
-assert.deepStrictEqual(Array.from(c.vacunas), ['Gripe', 'COVID-19']);
+assert.deepStrictEqual(Array.from(c.vacunas), ['Gripe', 'Comirnaty']);
 assert.throws(() => G.completarAsistente('1234', { centro: 'X', pin: '1234', vacunas: ['A'] }), /entre 6 y 20|no puede ser/);
 assert.throws(() => G.completarAsistente('1234', { centro: 'X', pin: '9876', vacunas: ['A'] }), /entre 6 y 20/);
 assert.throws(() => G.completarAsistente('1234', { centro: '', pin: '987654', vacunas: ['A'] }), /centro/);
