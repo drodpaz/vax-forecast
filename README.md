@@ -29,7 +29,7 @@ Contador de dosis para campañas de vacunación en centros de salud, hecho con *
 
 **Panel** (protegido con PIN)
 - Dosis puestas por día, semana, vacuna, turno y profesional.
-- Dosis necesarias por semana frente a dosis puestas, y capacidad (enfermeras/os × huecos × días).
+- Dosis necesarias por semana frente a dosis puestas, pacientes vacunados y capacidad (huecos de cada perfil —familia, pediatría…— × días; quien vacuna sin cita, como la matrona, se cuenta aparte).
 - **Stock**: lo que queda de cada vacuna, consumo medio semanal, semanas que quedan y avisos de stock mínimo.
 - **Previsión de la campaña**: cobertura por grupo de población, fecha estimada para llegar al objetivo, ritmo necesario, **pedido sugerido** para el próximo reparto y dosis que sobrarían o faltarían al final.
 - **Resumen semanal por correo** (opcional), cada lunes a las 8:00.
@@ -102,13 +102,16 @@ Si prefieres que no pregunte nada (por ejemplo, para repartirlo en un USB a todo
 ### Contador
 1. Abre el enlace del contador (en el móvil: *Añadir a pantalla de inicio*).
 2. Elige tu nombre y el turno. Se recuerdan para la próxima vez.
-3. Pulsa la vacuna cada vez que la pongas; si te equivocas, pulsa **−1**. Si una vacuna está en varios grupos de la campaña, sale un botón por grupo (por ejemplo, *Vaxigrip · 60–64 años* y *Vaxigrip · Menores de 60*): pulsa el del grupo de esa persona.
+3. Pulsa **una casilla por paciente**. El contador es una cuadrícula: cada **fila** es la vacuna de la gripe y cada **columna** dice si lleva también una de COVID (*sola*, *+ Comirnaty30*, *+ Spikevax*…). Por ejemplo, la casilla *Efluelda · + Comirnaty30* apunta un paciente con dos dosis (y baja el stock de las dos); *mCombriax* es un solo pinchazo con gripe y COVID; la fila *Solo COVID* es para quien solo se pone la de COVID. Si una vacuna de gripe está en varios grupos de la campaña, su fila sale partida por grupo (por ejemplo, *Vaxigrip 60–64 años* y *Vaxigrip menores de 60*): pulsa la del grupo de esa persona. Si te equivocas, pulsa **↶ Deshacer**: te dice qué paciente va a quitar (el último que apuntaste) y te pide confirmación. Las casillas que salen se eligen en el panel (*Configuración del centro › Pautas del contador*).
+   - **Contadores (perfiles)**: en *Configuración del centro › Contadores* puedes definir varios contadores, por ejemplo *Adultos + COMBO-GAL*, *Adultos* y *Pediatría* (el botón «Crear los 3 de ejemplo» los monta y busca los grupos por el nombre). Cada fila es una vacuna de gripe (o *solo COVID*) con un texto («60–64 años», «6–23 meses»…), el **grupo de la campaña** donde cuentan sus dosis y sus casillas (*sola* y con qué vacuna de COVID). En el contador, cada ordenador o móvil elige su contador una vez y lo recuerda. Sin contadores, la cuadrícula se monta sola con las *Pautas del contador*.
 4. Arriba a la derecha verás **✓ Guardado**, o cuántos toques quedan pendientes de enviar. No cierres la página mientras haya pendientes.
 
 ### Panel
 - Elige el periodo (hoy, esta semana, semana pasada, últimas 4 semanas, toda la campaña o fechas concretas).
 - **Necesidades cubiertas**: dosis puestas frente a dosis necesarias del periodo.
-- **Huecos aprovechados**: dosis puestas frente a la capacidad del centro.
+- **Pacientes** y **dosis**: un paciente con gripe y COVID son 2 dosis pero ocupa 1 hueco. **Huecos aprovechados** = pacientes frente a la capacidad del centro; el panel muestra también las dosis por paciente. (Antes de la v1.4 cada dosis contaba como un paciente.)
+- **Pacientes reales de un día**: si un día no cuadra (por ejemplo, antes de la v1.4, cuando un paciente con gripe y COVID contaba como dos), en *Día a día* escribe los pacientes que se vacunaron de verdad según la agenda. Sustituyen al cálculo en el total de ese día, de su semana y del periodo (marcados con ✎); las tablas por perfil y por profesional siguen calculadas. Guardar el día con la casilla vacía quita la corrección.
+- **Perfiles y huecos**: en *Configuración del centro › Perfiles* pon cada tipo de agenda con sus **huecos por día**, por ejemplo *Enfermería de familia 14 · Enfermería pediátrica 8 · Enfermería obstétrica 0*. **0 = vacuna sin cita**, de forma oportunista (la matrona). En *Profesionales* eliges el perfil de cada persona y, solo si tiene otros huecos (p. ej. reducción de jornada), sus **huecos propios**. La capacidad pasa a ser la suma de los huecos de cada profesional; la capacidad real de cada día suma los de quienes vacunaron ese día; los pacientes de quien vacuna sin cita salen aparte (**sin cita**) y no cuentan como huecos ocupados. La tabla **Por perfil** muestra pacientes, capacidad y huecos aprovechados de cada perfil, sin nombres (se ve aunque la vista por profesional esté apagada). Si no usas perfiles, la capacidad sigue siendo enfermeras/os × huecos generales.
 - **Evolución por semanas**, **día a día** y **por profesional** (esto último se puede ocultar en la configuración).
 
 ### Stock
@@ -135,6 +138,7 @@ Cómo se calcula el stock de cada vacuna:
 **1. Configura la campaña** (sección *Campaña y previsión* del panel):
 - Carga una plantilla. Viene la de **Galicia 2026 (gripe)**, hecha a partir de la *Instrución da campaña 2026 de vacinación fronte á gripe e á covid-19* del SERGAS: grupos, fechas de inicio escalonadas, vacuna de cada grupo, objetivos de cobertura y días de reparto. También puedes crear los grupos a mano.
 - Pon la **población de cada grupo** (de vuestros cupos o del informe de coberturas). Es lo único que hay que meter a mano.
+- Opcional, pero recomendable: el **techo esperado %** de cada grupo, la cobertura a la que de verdad se suele llegar (por ejemplo, la de la campaña pasada). Siempre hay gente que no acude a la cita o no quiere vacunarse; con el techo, la previsión lo tiene en cuenta.
 
 | Grupo (plantilla Galicia 2026) | Vacuna | Desde | Objetivo |
 |---|---|---|---|
@@ -152,16 +156,22 @@ Días de reparto: del 13/10 al 15/11, martes, miércoles y viernes; del 16/11 al
 Si una vacuna se pide con **otro calendario** (por ejemplo, la COVID), añade una fila en la pestaña *Repartos* con su nombre en la columna **Vacunas**. Ejemplo: desde 13/10/2026 hasta 31/12/2026, días `mar, jue`, antelación `0` (se pide el mismo día del reparto), hora límite `12:00`, vacunas `COVID-19`. Las filas con la columna *Vacunas* vacía valen para todas las demás.
 
 **2. Cómo se calcula** (son estimaciones):
-- **Vacunados por grupo** = último **dato oficial** del grupo (si lo metes) + dosis del contador desde entonces. Si una vacuna está en varios grupos, el contador muestra un botón por grupo y cada dosis cuenta para el grupo pulsado (desde la v1.3). Las dosis sin grupo (anteriores a la v1.3 o de un contador antiguo) cuentan para los grupos que usan esa vacuna y ya han empezado, repartidas según la población diana de cada uno. Un grupo sin población (por ejemplo, *Menores de 60*) solo cuenta dosis y consumo, sin cobertura.
+- **Vacunados por grupo** = último **dato oficial** del grupo (si lo metes) + dosis del contador desde entonces. Cada vacuna dice en *Vacunas* frente a qué protege (*Gripe*, *COVID* o *Gripe y COVID*, como mCombriax), y cada grupo es de la enfermedad que protegen todas sus vacunas. Una dosis cuenta, por cada enfermedad que protege, en los grupos de esa enfermedad: una mCombriax cuenta entera en «65 o más» (gripe) y entera en «65 o más · COVID», y un paciente con Efluelda + Comirnaty30 cuenta una vez en cada uno. Si una vacuna está en varios grupos de la misma enfermedad, el contador la parte por grupo y cada dosis cuenta para el grupo pulsado; las dosis sin grupo se reparten según la población diana. No mezcles vacunas de gripe y de COVID en el mismo grupo (el panel avisa). Un grupo sin población (por ejemplo, *Menores de 60*) solo cuenta dosis y consumo, sin cobertura.
+- **Suma en**: los grupos con el mismo texto en esta columna se suman en una línea. En Galicia el objetivo oficial es del conjunto (**cobertura ≥ 75 % en 60 o más años**, Instrución 2026, ap. 2.2), así que pon «60 o más» en «65 o más» y «60–64 años»: el panel compara esa línea con el 75 %.
 - **Dato oficial**: cuando tengas el informe de coberturas, mete la **cobertura (%)** o los vacunados de cada grupo y la fecha hasta la que llega el informe. Corrige la estimación igual que un recuento corrige el stock, y el contador suma las dosis posteriores a esa fecha. Sirve también para empezar a usar la app a mitad de campaña.
 - **Ritmo** = dosis de los últimos 14 días ÷ días laborables. **Llega al objetivo** = fecha estimada si se mantiene el ritmo. **Necesario / día** = lo que falta ÷ días laborables que quedan.
+- **Techo esperado**: si lo pones, el ritmo se va frenando a medida que el grupo se acerca a él (cada día se vacuna la misma fracción de los que aún pueden venir: si hoy faltan 300 hasta el techo y vacunáis 18 al día, la previsión cuenta 18, luego 17, 16…). Así la fecha de *Llega al objetivo* es realista, el objetivo puede no alcanzarse nunca si está por encima del techo y el **consumo y el pedido bajan solos al final de la campaña**, sin que sobren vacunas. Sin techo, el ritmo actual se mantiene.
+- **Al final**: cobertura prevista el último día de la campaña.
+- Un grupo que empezó hace 3 días laborables o menos aún no tiene ritmo: hasta entonces se usa el plan (población × techo u objetivo, repartido entre sus días de campaña).
 - **Pedido sugerido** = consumo previsto hasta el reparto siguiente + stock mínimo − stock actual, sin pasar de lo que falta para acabar la campaña. El consumo previsto suma el ritmo de cada grupo hasta que llega a su objetivo y los grupos que todavía no han empezado. Si ya tienes un pedido en camino, réstalo.
 - **Al final de la campaña**: dosis que sobrarían o faltarían. Avisa si lo que sobra pasa del 5 % de lo recibido.
 - No tiene en cuenta los festivos.
 
-**3. Resumen semanal por correo**: escribe el correo, guarda y pulsa *Activar el envío de los lunes*. Llega a las 8:00 con las dosis de la semana anterior, la cobertura por grupo, el stock y el pedido sugerido. No incluye datos de pacientes.
+**3. Asistencia a las citas** (opcional): escribe vuestras agendas en *Campaña y previsión* (por ejemplo, `GRI, Gri2`). Luego, en la previsión, apunta cada día, mirando la agenda, cuántas personas había **citadas** en cada una y cuántas **faltaron** (sin nombres). El panel muestra la asistencia de los últimos 28 días por agenda, los huecos perdidos y **cuántas citas hacer al día para no perder huecos** (citados por día ÷ asistencia: si citáis 7 y viene el 70 %, citad 10). Se guarda en la pestaña *Citas*.
 
-**4. Aviso de pedido por Telegram (o correo)**: el día en que vence el plazo del pedido del próximo reparto, a la hora que elijas (de 6:00 a 13:00), te llega un mensaje con lo que hay que pedir de cada vacuna, el stock y cuándo llega. Si no hace falta pedir nada, no envía nada, y avisa una sola vez por reparto.
+**4. Resumen semanal por correo**: escribe el correo, guarda y pulsa *Activar el envío de los lunes*. Llega a las 8:00 con las dosis de la semana anterior, la cobertura por grupo, el stock y el pedido sugerido. No incluye datos de pacientes.
+
+**5. Aviso de pedido por Telegram (o correo)**: el día en que vence el plazo del pedido del próximo reparto, a la hora que elijas (de 6:00 a 13:00), te llega un mensaje con lo que hay que pedir de cada vacuna, el stock y cuándo llega. Si no hace falta pedir nada, no envía nada, y avisa una sola vez por reparto.
 
 Para conectarlo a Telegram (en *Campaña y previsión › Aviso de pedido*):
 1. En Telegram, busca **@BotFather** (el oficial) y escríbele `/newbot`. Ponle un nombre y un usuario que termine en `bot`.
@@ -187,12 +197,15 @@ Los datos no se pierden: al abrir el contador o el panel, la hoja se pone al dí
 
 | Pestaña | Contenido |
 |---|---|
-| Registro | Una fila por toque: momento, fecha, semana, turno, profesional, vacuna, +1/−1, id, grupo (si la vacuna está en varios grupos) |
+| Registro | Una fila por dosis: momento, fecha, semana, turno, profesional, vacuna, +1/−1, id, grupo, **paciente** (1 en la primera dosis de cada paciente, 0 en la segunda, −1 al deshacer; sumando esta columna salen los pacientes), **pauta** (p. ej. «Efluelda + Comirnaty30») y **fila** del contador (p. ej. «12–14 años») |
 | Configuración | Nombre del centro, capacidad, PIN del panel… |
-| Vacunas | Vacuna, dosis necesarias por semana, activa, stock mínimo |
-| Profesionales | Nombres que salen en el contador |
+| Vacunas | Vacuna, dosis necesarias por semana, activa, stock mínimo, protege frente a (Gripe, COVID o Gripe y COVID) |
+| Profesionales | Nombres que salen en el contador, perfil y huecos propios por día (vacío = los del perfil; 0 = sin cita) |
 | Stock | Entradas, mermas y recuentos |
-| Grupos | Grupos de población: vacunas, fecha de inicio, población, objetivo |
+| Grupos | Grupos de población: vacunas, fecha de inicio, población, objetivo, techo esperado, suma en |
+| Citas | Citados y faltas por día y agenda (opcional) |
+| Pacientes del día | Pacientes reales de un día apuntados a mano (opcional); vale el último dato de cada día |
+| Contadores | Filas de cada contador: contador, vacuna de gripe, texto, grupo, sola (Sí/No) y vacunas de COVID (opcional) |
 | Coberturas | Datos oficiales de vacunados por grupo (opcional) |
 | Repartos | Días de reparto, antelación y hora límite del pedido; opcionalmente, solo para algunas vacunas |
 

@@ -14,6 +14,9 @@
  *   Grupos         grupos de población de la campaña: vacunas, fecha de inicio, población y objetivo.
  *   Coberturas     datos oficiales de vacunados por grupo (p. ej. del informe semanal), opcionales.
  *   Repartos       días de reparto de vacunas y plazo para hacer el pedido.
+ *   Citas          citados y faltas por agenda y día (opcional): asistencia y cuánto sobrecitar.
+ *   Pacientes del día  pacientes reales de un día (de la agenda), si el cálculo del contador no cuadra.
+ *   Contadores     filas de cada contador (perfil): vacuna, texto, grupo y casillas.
  */
 
 // Zona horaria del centro. En Canarias: 'Atlantic/Canary'. Solo hay que cambiarla aquí:
@@ -25,16 +28,29 @@ const H_VAC = 'Vacunas';
 const H_PRO = 'Profesionales';
 const H_STK = 'Stock';
 
-const CAB_REG = ['Momento', 'Fecha', 'Semana', 'Turno', 'Profesional', 'Vacuna', 'Cambio', 'Id', 'Grupo'];
+// «Paciente»: 1 en la primera dosis de cada paciente, 0 en las demás dosis del mismo acto (−1 al deshacer).
+// «Pauta»: lo que se pulsó en el contador, p. ej. «Efluelda + Comirnaty30».
+// «Fila»: el texto de la fila del contador (p. ej. «60–64 años»), para que dos filas de la misma vacuna no se mezclen.
+const CAB_REG = ['Momento', 'Fecha', 'Semana', 'Turno', 'Profesional', 'Vacuna', 'Cambio', 'Id', 'Grupo', 'Paciente', 'Pauta', 'Fila'];
+// Contadores (perfiles): cada fila es una vacuna de gripe (o solo COVID) con su texto, su grupo y con qué COVID puede ir.
+const H_CON = 'Contadores';
+const CAB_CON = ['Contador', 'Vacuna de gripe (vacío = solo COVID)', 'Texto de la fila (p. ej. 60–64 años)', 'Grupo', 'Sola (Sí/No)', 'Con COVID (separadas por comas)'];
 const CAB_CFG = ['Parámetro', 'Valor'];
-const CAB_VAC = ['Vacuna', 'Dosis necesarias por semana', 'Activa (Sí/No)', 'Stock mínimo'];
-const CAB_PRO = ['Nombre', 'Activo (Sí/No)'];
+const CAB_VAC = ['Vacuna', 'Dosis necesarias por semana', 'Activa (Sí/No)', 'Stock mínimo', 'Protege frente a'];
+const PROTEGE = ['Gripe', 'COVID', 'Gripe y COVID'];
+// Huecos por día de cada profesional: vacío = el número general de Configuración; 0 = vacuna sin cita (oportunista, p. ej. matrona).
+const CAB_PRO = ['Nombre', 'Activo (Sí/No)', 'Perfil', 'Huecos propios por día (vacío = los del perfil; 0 = sin cita)'];
 const CAB_STK = ['Momento', 'Fecha', 'Vacuna', 'Tipo', 'Cantidad', 'Nota'];
 const TIPOS_STK = ['Entrada', 'Merma', 'Recuento'];
 const H_GRU = 'Grupos';
 const H_COB = 'Coberturas';
 const H_REP = 'Repartos';
-const CAB_GRU = ['Grupo', 'Vacunas (separadas por comas)', 'Desde', 'Población', 'Objetivo %', 'Activo (Sí/No)'];
+const CAB_GRU = ['Grupo', 'Vacunas (separadas por comas)', 'Desde', 'Población', 'Objetivo %', 'Activo (Sí/No)', 'Techo esperado %', 'Suma en (opcional)'];
+const H_CIT = 'Citas';
+// Pacientes reales de un día (de la agenda), para corregir días en que cada dosis contó como un paciente.
+const H_PAC = 'Pacientes del día';
+const CAB_PAC = ['Momento', 'Fecha', 'Pacientes', 'Nota'];
+const CAB_CIT = ['Momento', 'Fecha', 'Agenda', 'Citados', 'Faltaron'];
 const CAB_COB = ['Momento', 'Fecha', 'Grupo', 'Vacunados acumulados', 'Nota'];
 const CAB_REP = ['Desde', 'Hasta', 'Días de reparto', 'Antelación del pedido (días laborables)', 'Hora límite del pedido', 'Vacunas (vacío = todas las demás)'];
 
@@ -51,17 +67,20 @@ const P = {
   correo: 'Correo del resumen semanal',
   avisoCorreo: 'Aviso de pedido también por correo (Sí/No)',
   avisoHora: 'Hora del aviso de pedido',
-  clave: 'Clave del equipo (vacío = sin clave)'
+  clave: 'Clave del equipo (vacío = sin clave)',
+  agendas: 'Agendas de cita (separadas por comas)',
+  pautas: 'Pautas del contador (separadas por ; vacío = todas)',
+  perfiles: 'Perfiles y huecos por día (p. ej. Enfermería de familia: 14; Enfermería obstétrica: 0)'
 };
 // La vista por profesional viene desactivada: son datos personales de la plantilla (RGPD).
 const PARAMS_DEF = [[P.centro, ''], [P.enf, '6'], [P.huecos, '12'], [P.dias, '5'], [P.pin, PIN_FABRICA], [P.porProf, 'No'],
-  [P.inicio, ''], [P.fin, ''], [P.correo, ''], [P.avisoCorreo, 'No'], [P.avisoHora, '9'], [P.clave, '']];
+  [P.inicio, ''], [P.fin, ''], [P.correo, ''], [P.avisoCorreo, 'No'], [P.avisoHora, '9'], [P.clave, ''], [P.agendas, ''], [P.pautas, ''], [P.perfiles, '']];
 // El token del bot de Telegram y el chat se guardan en las propiedades del script, no en la hoja.
 const PROP_TG_TOKEN = 'TELEGRAM_TOKEN';
 const PROP_TG_CHAT = 'TELEGRAM_CHAT';
 const PROP_TG_NOMBRE = 'TELEGRAM_CHAT_NOMBRE';
 const PROP_AVISO_HECHO = 'AVISO_PEDIDO_ENVIADO';
-const VAC_DEF = [['Gripe', 0, 'Sí', 0], ['COVID-19', 0, 'Sí', 0]];
+const VAC_DEF = [['Gripe', 0, 'Sí', 0, 'Gripe'], ['COVID-19', 0, 'Sí', 0, 'COVID']];
 
 /**
  * Plantillas de campaña. Solo cambian los grupos, las fechas y los repartos;
@@ -79,11 +98,11 @@ const PLANTILLAS = {
       ['Infantil 6–23 meses', 'Vaxigrip', '2026-10-13', 60],
       ['Infantil 2–11 años', 'Fluenz', '2026-10-13', 60],
       ['Personal sanitario', 'Vaxigrip', '2026-10-13', 60],
-      ['70 años o más', 'Efluelda', '2026-10-19', 75],
+      ['70 años o más', 'Efluelda', '2026-10-19', 75, '60 o más'],
       ['Embarazadas y puerperio', 'Vaxigrip', '2026-11-02', 60],
       ['Riesgo y otros 12–59 años', 'Vaxigrip', '2026-11-02', 0],
-      ['65–69 años', 'Efluelda', '2026-11-09', 75],
-      ['60–64 años', 'Vaxigrip', '2026-11-09', 75]
+      ['65–69 años', 'Efluelda', '2026-11-09', 75, '60 o más'],
+      ['60–64 años', 'Vaxigrip', '2026-11-09', 75, '60 o más']
     ],
     repartos: [
       ['2026-10-13', '2026-11-15', 'mar, mié, vie', 2, '14:00', ''],
@@ -163,7 +182,9 @@ function datosContador(k) {
     centro: c.centro,
     tz: TZ,
     vacunas: c.vacunas.filter(function (v) { return v.activa; }).map(function (v) { return v.nombre; }),
-    botones: botonesContador_(c),
+    botones: botonesContador_(c), // contadores anteriores a la v1.4
+    cuadricula: cuadricula_(c), // si no hay contadores definidos
+    contadores: leerContadores_(c).map(function (k) { return { nombre: k.nombre, cuadricula: cuadriculaDe_(c, k) }; }),
     profesionales: c.profesionales,
     hoy: hoy_()
   };
@@ -252,7 +273,10 @@ function registrar(lista, k) {
       const turno = e.turno === 'Tarde' ? 'Tarde' : 'Mañana';
       const fecha = Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
 
-      filas.push([d, fecha, semanaDeFecha_(fecha), turno, prof, vac, cambio, id, grupoDeToque_(grupos, vac, e.grupo)]);
+      // Paciente: los contadores v1.4 mandan 1/0/−1; los anteriores no, y cada dosis cuenta como un paciente.
+      const pac = e.paciente === 0 || e.paciente === 1 || e.paciente === -1 ? (e.paciente === 0 ? 0 : cambio) : cambio;
+      const pauta = limpiarTexto_(e.pauta, 80) || vac;
+      filas.push([d, fecha, semanaDeFecha_(fecha), turno, prof, vac, cambio, id, grupoDeToque_(grupos, vac, e.grupo), pac, pauta, limpiarTexto_(e.fila, 40)]);
       guardados.push(id);
       yaEstan[id] = true;
     });
@@ -270,20 +294,31 @@ function misHoy(profesional, k) {
   const hoy = hoy_();
   const prof = String(profesional || '').trim();
   const mias = {};
-  const miasG = {}; // por botón: «vacuna|grupo»
+  const miasG = {}; // por botón de la v1.3: «vacuna|grupo»
+  const casillas = {}; // pacientes por casilla de la cuadrícula: «pauta|grupo»
   const centro = {};
-  let ultima = 0;
-  leerRegistroDesde_(hoy).forEach(function (r) {
-    if (r.fecha !== hoy) return;
+  let pila = []; // pacientes de hoy de este profesional, en orden, para «Deshacer»
+  let ultima = 0, pac = 0, dosis = 0, pacCentro = 0;
+  const filas = leerRegistroDesde_(hoy).filter(function (r) { return r.fecha === hoy; });
+  filas.sort(function (a, b) { return a.t - b.t; });
+  filas.forEach(function (r) {
     centro[r.vacuna] = (centro[r.vacuna] || 0) + r.cambio;
-    if (r.profesional === prof) {
-      mias[r.vacuna] = (mias[r.vacuna] || 0) + r.cambio;
-      const kb = r.vacuna + '|' + r.grupo;
-      miasG[kb] = (miasG[kb] || 0) + r.cambio;
-      if (r.cambio > 0 && r.t > ultima) ultima = r.t;
-    }
+    pacCentro += r.paciente;
+    if (r.profesional !== prof) return;
+    mias[r.vacuna] = (mias[r.vacuna] || 0) + r.cambio;
+    const kb = r.vacuna + '|' + r.grupo;
+    miasG[kb] = (miasG[kb] || 0) + r.cambio;
+    dosis += r.cambio;
+    if (r.cambio > 0 && r.t > ultima) ultima = r.t;
+    if (!r.paciente) return;
+    pac += r.paciente;
+    const kc = r.pauta + '|' + r.grupo + '|' + r.fila;
+    casillas[kc] = (casillas[kc] || 0) + r.paciente;
+    if (r.paciente > 0) pila.push({ p: r.pauta, g: r.grupo, f: r.fila, t: r.t });
+    else for (let i = pila.length - 1; i >= 0; i--) if (pila[i].p === r.pauta && pila[i].g === r.grupo && pila[i].f === r.fila) { pila.splice(i, 1); break; }
   });
-  return { hoy: hoy, mias: mias, miasG: miasG, centro: centro, ultima: ultima };
+  return { hoy: hoy, mias: mias, miasG: miasG, centro: centro, ultima: ultima,
+    casillas: casillas, pila: pila.slice(-30), pacientes: pac, dosis: dosis, pacientesCentro: pacCentro };
 }
 
 /* --------------------------- Panel ------------------------------- */
@@ -334,11 +369,11 @@ function completarAsistente(pin, d) {
     .slice(0, 30)
     .map(function (n) {
       const p = previas[n.toLowerCase()];
-      return [n, p ? p.necesarias : 0, 'Sí', p ? p.minimo : 0];
+      return [n, p ? p.necesarias : 0, 'Sí', p ? p.minimo : 0, p ? p.protegeTxt : protegeTxt_(protegeDe_(n, ''))];
     });
   if (!vac.length) throw new Error('Escribe al menos una vacuna.');
 
-  const pro = listaProfesionales_(d.profesionales);
+  const pro = listaProfesionales_(d.profesionales, c.perfiles);
   const params = filasParams_(c, { centro: centro, pin: nuevoPin });
 
   const lock = LockService.getScriptLock();
@@ -373,17 +408,31 @@ function resumen(pin, desde, hasta) {
   const porProf = {};
   const porSem = {};
   const porTurno = {};
+  let pacientes = 0, sinCita = 0;
+  const porPerfil = {};
+  const pacTodo = {}; // pacientes calculados de cada día (todas las fechas), para corregir las semanas
 
   reg.forEach(function (r) {
-    const s = porSem[r.semana] || (porSem[r.semana] = { total: 0, v: {}, desde: r.fecha });
+    const s = porSem[r.semana] || (porSem[r.semana] = { total: 0, pac: 0, v: {}, desde: r.fecha });
     s.total += r.cambio;
+    s.pac += r.paciente;
+    pacTodo[r.fecha] = (pacTodo[r.fecha] || 0) + r.paciente;
     s.v[r.vacuna] = (s.v[r.vacuna] || 0) + r.cambio;
     if (r.fecha < s.desde) s.desde = r.fecha;
 
     if (r.fecha < desde || r.fecha > hasta) return;
 
-    const d = porDia[r.fecha] || (porDia[r.fecha] = { total: 0, v: {}, prof: {} });
+    const d = porDia[r.fecha] || (porDia[r.fecha] = { total: 0, pac: 0, pacSin: 0, v: {}, prof: {} });
     d.total += r.cambio;
+    d.pac += r.paciente;
+    if (!huecosDe_(c, r.profesional)) { d.pacSin += r.paciente; sinCita += r.paciente; }
+    const pk = perfilDe_(c, r.profesional);
+    const pp = porPerfil[pk] || (porPerfil[pk] = { pac: 0, dosis: 0, sin: 0, dias: {} });
+    pp.pac += r.paciente;
+    pp.dosis += r.cambio;
+    if (!huecosDe_(c, r.profesional)) pp.sin += r.paciente;
+    (pp.dias[r.fecha] || (pp.dias[r.fecha] = {}))[r.profesional] = true;
+    pacientes += r.paciente;
     d.v[r.vacuna] = (d.v[r.vacuna] || 0) + r.cambio;
     d.prof[r.profesional] = true;
 
@@ -391,18 +440,38 @@ function resumen(pin, desde, hasta) {
     porTurno[r.turno] = (porTurno[r.turno] || 0) + r.cambio;
 
     if (c.porProfesional) {
-      const p = porProf[r.profesional] || (porProf[r.profesional] = { total: 0, v: {}, dias: {} });
+      const p = porProf[r.profesional] || (porProf[r.profesional] = { total: 0, pac: 0, v: {}, dias: {} });
       p.total += r.cambio;
+      p.pac += r.paciente;
       p.v[r.vacuna] = (p.v[r.vacuna] || 0) + r.cambio;
       p.dias[r.fecha] = true;
     }
+  });
+
+  // Pacientes reales apuntados a mano: sustituyen al cálculo de ese día (total del día, semana y periodo).
+  const reales = leerPacientesDia_();
+  Object.keys(reales).forEach(function (f) {
+    const n = reales[f].n;
+    const sk = semanaDeFecha_(f);
+    const sem = porSem[sk] || (porSem[sk] = { total: 0, pac: 0, v: {}, desde: f });
+    sem.pac += n - (pacTodo[f] || 0);
+    if (f < desde || f > hasta) return;
+    const d = porDia[f] || (porDia[f] = { total: 0, pac: 0, pacSin: 0, v: {}, prof: {} });
+    pacientes += n - d.pac;
+    d.calc = d.pac;
+    d.pac = n;
+    d.real = reales[f];
   });
 
   return {
     config: {
       tz: TZ, pinCorto: !!c.pin && c.pin.length < PIN_MIN,
       centro: c.centro, enfermeras: c.enfermeras, huecos: c.huecos, dias: c.dias,
-      porProfesional: c.porProfesional, vacunas: c.vacunas, profesionales: c.profesionales, clave: c.clave
+      porProfesional: c.porProfesional, vacunas: c.vacunas, profesionales: c.profesionales, clave: c.clave,
+      huecosProf: c.huecosProf, perfilProf: c.perfilProf, perfiles: c.perfiles, capDia: capacidadDia_(c), huecosPropios: porPersona_(c),
+      grupos: leerGrupos_().filter(function (g) { return g.activo; }).map(function (g) { return { nombre: g.nombre, vacunas: g.vacunas }; }),
+      contadores: leerContadores_(c),
+      pautas: c.pautasTxt ? textoPautas_(c.pautas) : '', pautasLista: c.pautas
     },
     desde: desde,
     hasta: hasta,
@@ -410,18 +479,30 @@ function resumen(pin, desde, hasta) {
     primerRegistro: primero,
     porDia: Object.keys(porDia).sort().map(function (f) {
       const d = porDia[f];
-      return { fecha: f, total: d.total, v: d.v, profesionales: Object.keys(d.prof).length };
+      const profs = Object.keys(d.prof);
+      return { fecha: f, total: d.total, pacientes: d.pac, sinCita: Math.min(d.pacSin, d.pac), v: d.v, profesionales: profs.length,
+        capacidad: profs.reduce(function (s, p) { return s + huecosDe_(c, p); }, 0),
+        real: d.real ? { calculados: d.calc, nota: d.real.nota } : null };
     }),
     porVacuna: porVac,
+    pacientes: pacientes,
+    sinCita: sinCita,
+    // Por perfil: sin nombres, así que se ve aunque «Mostrar datos por profesional» esté en No.
+    porPerfil: c.perfiles.map(function (x) { return x.nombre; }).concat(['']).filter(function (k) { return porPerfil[k]; }).map(function (k) {
+      const x = porPerfil[k];
+      const fechas = Object.keys(x.dias);
+      const cap = fechas.reduce(function (s, f) { return s + Object.keys(x.dias[f]).reduce(function (t, p) { return t + huecosDe_(c, p); }, 0); }, 0);
+      return { perfil: k, pacientes: x.pac, dosis: x.dosis, sinCita: x.sin, dias: fechas.length, capacidad: cap };
+    }),
     porTurno: porTurno,
     porProfesional: c.porProfesional
       ? Object.keys(porProf).map(function (n) {
           const p = porProf[n];
-          return { nombre: n, total: p.total, v: p.v, dias: Object.keys(p.dias).length };
+          return { nombre: n, total: p.total, pacientes: p.pac, v: p.v, dias: Object.keys(p.dias).length, huecos: huecosDe_(c, n) };
         }).sort(function (a, b) { return b.total - a.total; })
       : null,
     porSemana: Object.keys(porSem).sort().map(function (k) {
-      return { semana: k, desde: lunesDe_(porSem[k].desde), total: porSem[k].total, v: porSem[k].v };
+      return { semana: k, desde: lunesDe_(porSem[k].desde), total: porSem[k].total, pacientes: porSem[k].pac, v: porSem[k].v };
     }),
     urlContador: urlContador_(c),
     urlHoja: libro_().getUrl()
@@ -438,11 +519,29 @@ function guardarConfig(pin, cfg) {
     .filter(function (v) { return v && String(v.nombre || '').trim(); })
     .slice(0, 30)
     .map(function (v) {
-      return [limpiarTexto_(v.nombre, 40), num_(v.necesarias), v.activa === false ? 'No' : 'Sí', Math.round(num_(v.minimo))];
+      const nom = limpiarTexto_(v.nombre, 40);
+      return [nom, num_(v.necesarias), v.activa === false ? 'No' : 'Sí', Math.round(num_(v.minimo)), protegeTxt_(protegeDe_(nom, v.protege))];
     });
   if (!vac.length) throw new Error('Tiene que haber al menos una vacuna.');
+  // Pautas del contador: se comprueban con la lista de vacunas nueva.
+  const vacsNuevas = vac.map(function (r) { return { nombre: r[0], activa: r[2] === 'Sí', protege: protegeDe_(r[0], r[4]) }; });
+  const pautas = cfg.pautas == null ? c.pautasTxt : textoPautas_(leerPautas_(cfg.pautas, vacsNuevas, true));
 
-  const pro = listaProfesionales_(cfg.profesionales);
+  const perfiles = cfg.perfiles == null ? c.perfiles : perfilesDe_(cfg.perfiles);
+  // Contadores: se comprueban con la lista de vacunas nueva.
+  let contadores = null;
+  if (cfg.contadores != null) {
+    const c2 = Object.assign({}, c, { vacunas: vacsNuevas.map(function (v) { return { nombre: v.nombre, activa: v.activa, protege: v.protege }; }) });
+    const filasK = [];
+    (cfg.contadores || []).forEach(function (k) {
+      (k.filas || []).forEach(function (fl) { filasK.push({ contador: k.nombre, gripe: fl.gripe, texto: fl.texto, grupo: fl.grupo, sola: fl.sola, covid: fl.covid || [] }); });
+    });
+    contadores = [];
+    contadoresDe_(c2, filasK, true).forEach(function (k) {
+      k.filas.forEach(function (fl) { contadores.push([k.nombre, fl.gripe, fl.texto, fl.grupo, fl.ambas || fl.sola ? 'Sí' : 'No', fl.covid.join(', ')]); });
+    });
+  }
+  const pro = listaProfesionales_(cfg.profesionales, perfiles);
   const pinPedido = String(cfg.pin || '').trim();
   if (pinPedido && !pinValido_(pinPedido)) throw new Error('El PIN nuevo tiene que tener entre ' + PIN_MIN + ' y 20 caracteres, sin espacios.');
   const nuevoPin = pinPedido || c.pin;
@@ -455,7 +554,9 @@ function guardarConfig(pin, cfg) {
     huecos: num_(cfg.huecos),
     dias: Math.min(7, num_(cfg.dias) || 5),
     pin: nuevoPin,
-    porProfesional: !!cfg.porProfesional
+    porProfesional: !!cfg.porProfesional,
+    pautasTxt: pautas,
+    perfiles: perfiles
   });
 
   const lock = LockService.getScriptLock();
@@ -465,6 +566,7 @@ function guardarConfig(pin, cfg) {
     reescribir_(ss.getSheetByName(H_CFG), CAB_CFG, params, true);
     reescribir_(ss.getSheetByName(H_VAC), CAB_VAC, vac, false);
     reescribir_(ss.getSheetByName(H_PRO), CAB_PRO, pro, false);
+    if (contadores) reescribir_(ss.getSheetByName(H_CON), CAB_CON, contadores, [1, 2, 3, 4, 5, 6]);
   } finally {
     lock.releaseLock();
   }
@@ -676,14 +778,15 @@ function guardarCampana(pin, d) {
       return real;
     });
     if (!lista.length) throw new Error('Pon al menos una vacuna en el grupo «' + nombre + '».');
-    return [nombre, lista.join(', '), fechaTxt_(g.desde), Math.round(num_(g.poblacion)), pct_(g.objetivo), g.activo === false ? 'No' : 'Sí'];
+    return [nombre, lista.join(', '), fechaTxt_(g.desde), Math.round(num_(g.poblacion)), pct_(g.objetivo), g.activo === false ? 'No' : 'Sí', pct_(g.techo) || '', limpiarTexto_(g.suma, 40)];
   }).filter(Boolean);
+  const agendas = d.agendas == null ? c.agendas : listaAgendas_(d.agendas);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const ss = libro_();
-    reescribir_(ss.getSheetByName(H_CFG), CAB_CFG, filasParams_(c, { inicio: inicio, fin: fin, correo: correo }), true);
+    reescribir_(ss.getSheetByName(H_CFG), CAB_CFG, filasParams_(c, { inicio: inicio, fin: fin, correo: correo, agendas: agendas }), true);
     reescribir_(ss.getSheetByName(H_GRU), CAB_GRU, filas, [3]);
   } finally {
     lock.releaseLock();
@@ -705,7 +808,7 @@ function cargarPlantilla(pin, id) {
   leerGrupos_().forEach(function (g) { previos[g.nombre.toLowerCase()] = g; });
   const grupos = t.grupos.map(function (g) {
     const p = previos[g[0].toLowerCase()];
-    return [g[0], g[1], g[2], p ? p.poblacion : 0, g[3], 'Sí'];
+    return [g[0], g[1], g[2], p ? p.poblacion : 0, g[3], 'Sí', p && p.techo ? p.techo : '', g[4] || (p ? p.suma : '')];
   });
   const tiene = {};
   c.vacunas.forEach(function (v) { tiene[v.nombre.toLowerCase()] = true; });
@@ -723,7 +826,7 @@ function cargarPlantilla(pin, id) {
     if (nuevas.length) {
       const hv = ss.getSheetByName(H_VAC);
       hv.getRange(hv.getLastRow() + 1, 1, nuevas.length, CAB_VAC.length)
-        .setValues(nuevas.map(function (n) { return [n, 0, 'Sí', 0]; }));
+        .setValues(nuevas.map(function (n) { return [n, 0, 'Sí', 0, protegeTxt_(protegeDe_(n, ''))]; }));
     }
   } finally {
     lock.releaseLock();
@@ -784,6 +887,160 @@ function registrarCobertura(pin, d) {
   return calcularPrevision_(c);
 }
 
+/* ------------------- Pacientes reales del día --------------------- */
+
+/**
+ * Apunta los pacientes reales de un día (p. ej. de la agenda): {fecha, pacientes, nota}.
+ * Sustituyen al cálculo del contador en el total de ese día. pacientes vacío = quitar la corrección.
+ */
+function registrarPacientesDia(pin, d) {
+  const c = leerConfig_();
+  comprobarPin_(c, pin);
+  d = d || {};
+  const hoy = hoy_();
+  const fecha = fechaTxt_(d.fecha);
+  if (!fecha) throw new Error('La fecha no es válida.');
+  if (fecha > hoy) throw new Error('La fecha no puede ser futura.');
+  let n = '';
+  if (d.pacientes !== '' && d.pacientes != null) {
+    n = Number(d.pacientes);
+    if (!isFinite(n) || n < 0 || n !== Math.floor(n) || n > 5000) throw new Error('Los pacientes tienen que ser un número entero, 0 o más.');
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const h = libro_().getSheetByName(H_PAC);
+    h.getRange(h.getLastRow() + 1, 1, 1, CAB_PAC.length).setValues([[new Date(), fecha, n, limpiarTexto_(d.nota, 150)]]);
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true, fecha: fecha, pacientes: n === '' ? null : n };
+}
+
+/** Último dato de cada día: {fecha: {n, nota}}. Si el último está vacío, ese día no se corrige. */
+function leerPacientesDia_() {
+  const h = libro_().getSheetByName(H_PAC);
+  const out = {};
+  if (!h) return out;
+  filas_(h, CAB_PAC.length).forEach(function (r) {
+    const f = fechaTxt_(r[1]);
+    if (!f) return;
+    const n = Number(r[2]);
+    if (r[2] === '' || r[2] == null || !isFinite(n) || n < 0) { delete out[f]; return; }
+    out[f] = { n: Math.round(n), nota: String(r[3] == null ? '' : r[3]) };
+  });
+  return out;
+}
+
+/* --------------------- Citas y asistencia ------------------------ */
+
+/**
+ * Guarda los citados y las faltas de un día por agenda: {fecha, filas: [{agenda, citados, faltaron}]}.
+ * Si se guarda otra vez el mismo día y agenda, vale el último dato.
+ */
+const DIAS_ASISTENCIA = 28;
+const ARRANQUE_DIAS = 3;
+function registrarCitas(pin, d) {
+  const c = leerConfig_();
+  comprobarPin_(c, pin);
+  d = d || {};
+  if (!c.agendas.length) throw new Error('Escribe primero las agendas de cita en «Campaña y previsión» y guarda.');
+  const hoy = hoy_();
+  const fecha = d.fecha ? fechaTxt_(d.fecha) : hoy;
+  if (!fecha) throw new Error('La fecha no es válida.');
+  if (fecha > hoy) throw new Error('La fecha no puede ser futura.');
+  if (fecha < sumarDias_(hoy, -MAX_DIAS_ATRAS)) throw new Error('La fecha es demasiado antigua.');
+  const ag = {};
+  c.agendas.forEach(function (a) { ag[a.toLowerCase()] = a; });
+  const ent = function (v, que) {
+    const n = Number(v);
+    if (!isFinite(n) || n < 0 || n !== Math.floor(n) || n > 1000) throw new Error(que + ' tiene que ser un número entero, 0 o más.');
+    return n;
+  };
+  const ahora = new Date();
+  const filas = [];
+  (d.filas || []).slice(0, 8).forEach(function (f) {
+    if (!f || f.citados === '' || f.citados == null) return;
+    const a = ag[String(f.agenda || '').trim().toLowerCase()];
+    if (!a) throw new Error('La agenda «' + limpiarTexto_(f.agenda, 30) + '» no está en la lista.');
+    const ci = ent(f.citados, 'Citados (' + a + ')');
+    const fa = f.faltaron === '' || f.faltaron == null ? 0 : ent(f.faltaron, 'Faltaron (' + a + ')');
+    if (fa > ci) throw new Error('En ' + a + ' faltaron más de los citados.');
+    filas.push([ahora, fecha, a, ci, fa]);
+  });
+  if (!filas.length) throw new Error('Escribe los citados de al menos una agenda.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const h = libro_().getSheetByName(H_CIT);
+    h.getRange(h.getLastRow() + 1, 1, filas.length, CAB_CIT.length).setValues(filas);
+  } finally {
+    lock.releaseLock();
+  }
+  return calcularPrevision_(c);
+}
+
+/** Citas por día y agenda (el último dato de cada día y agenda): [{fecha, agenda, citados, faltaron}]. */
+function leerCitas_() {
+  const h = libro_().getSheetByName(H_CIT);
+  if (!h) return [];
+  const ult = {};
+  filas_(h, CAB_CIT.length).forEach(function (r, i) {
+    const f = fechaTxt_(r[1]);
+    const a = String(r[2] == null ? '' : r[2]).trim();
+    const ci = Number(r[3]);
+    if (!f || !a || r[3] === '' || !isFinite(ci) || ci < 0) return;
+    const fa = Math.max(0, Math.min(ci, Number(r[4]) || 0));
+    ult[f + '|' + a.toLowerCase()] = { fecha: f, agenda: a, citados: Math.round(ci), faltaron: Math.round(fa), i: i };
+  });
+  return Object.keys(ult).map(function (k) { return ult[k]; });
+}
+
+/**
+ * Asistencia de los últimos DIAS_ASISTENCIA días por agenda:
+ *   asistencia = (citados − faltaron) ÷ citados;
+ *   citarPara = citas que hacen falta al día para que vengan los mismos que citáis ahora
+ *               (media de citados ÷ asistencia), o sea, cuánto sobrecitar para no perder huecos.
+ */
+function calcularAsistencia_(c, hoy) {
+  const desde = sumarDias_(hoy, -(DIAS_ASISTENCIA - 1));
+  const todas = leerCitas_();
+  const por = {};
+  const nombres = c.agendas.slice();
+  todas.forEach(function (x) {
+    if (x.fecha < desde || x.fecha > hoy) return;
+    const k = x.agenda.toLowerCase();
+    if (!por[k]) {
+      por[k] = { agenda: x.agenda, dias: 0, citados: 0, faltaron: 0 };
+      if (!nombres.some(function (n) { return n.toLowerCase() === k; })) nombres.push(x.agenda);
+    }
+    por[k].dias++;
+    por[k].citados += x.citados;
+    por[k].faltaron += x.faltaron;
+  });
+  const r1 = function (n) { return Math.round(n * 10) / 10; };
+  const fila = function (a, x) {
+    if (!x || !x.citados) return { agenda: a, dias: x ? x.dias : 0, citados: 0, faltaron: 0, asistencia: null, citadosDia: null, citarPara: null };
+    const asis = (x.citados - x.faltaron) / x.citados;
+    const media = x.citados / x.dias;
+    return {
+      agenda: a, dias: x.dias, citados: x.citados, faltaron: x.faltaron,
+      asistencia: r1(asis * 100), citadosDia: r1(media),
+      citarPara: asis > 0 ? Math.ceil(media / asis - 1e-9) : null
+    };
+  };
+  const agendas = nombres.map(function (n) { return fila(n, por[n.toLowerCase()]); });
+  const tot = agendas.reduce(function (s, a) { s.citados += a.citados; s.faltaron += a.faltaron; s.dias = Math.max(s.dias, a.dias); return s; }, { citados: 0, faltaron: 0, dias: 0 });
+  const recientes = todas.filter(function (x) { return x.fecha >= sumarDias_(hoy, -13); })
+    .sort(function (a, b) { return a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : a.agenda.localeCompare(b.agenda); });
+  return {
+    dias: DIAS_ASISTENCIA,
+    agendas: agendas,
+    total: tot.citados ? { citados: tot.citados, faltaron: tot.faltaron, asistencia: r1((tot.citados - tot.faltaron) / tot.citados * 100) } : null,
+    recientes: recientes.map(function (x) { return { fecha: x.fecha, agenda: x.agenda, citados: x.citados, faltaron: x.faltaron }; })
+  };
+}
+
 function leerGrupos_() {
   const h = libro_().getSheetByName(H_GRU);
   if (!h) return [];
@@ -796,7 +1053,9 @@ function leerGrupos_() {
         desde: fechaTxt_(r[2]),
         poblacion: Math.round(num_(r[3])),
         objetivo: pct_(r[4]),
-        activo: !esNo_(r[5])
+        activo: !esNo_(r[5]),
+        techo: pct_(r[6]),
+        suma: String(r[7] == null ? '' : r[7]).trim()
       };
     });
 }
@@ -918,26 +1177,68 @@ function calcularPrevision_(c) {
   };
   const porNombre = {};
   grupos.forEach(function (g) { porNombre[k(g.nombre)] = g; });
+  /*
+   * Enfermedad de cada grupo: la que protegen TODAS sus vacunas (un grupo «65 o más · gripe» con
+   * Efluelda y mCombriax es de gripe; uno «65 o más · COVID» con Comirnaty30 y mCombriax, de COVID).
+   * Una dosis cuenta, por cada enfermedad que protege, para los grupos de esa enfermedad: así una
+   * mCombriax cuenta entera en el grupo de gripe y entera en el de COVID, y un paciente con
+   * Efluelda + Comirnaty30 no cuenta dos veces en el mismo grupo.
+   * Un grupo que mezcla vacunas de gripe y de COVID (p. ej. Efluelda y Comirnaty30) se marca «mixto»:
+   * en él, un paciente con las dos contaría dos veces.
+   */
+  const prot = {};
+  c.vacunas.forEach(function (v) { prot[k(v.nombre)] = v.protege; });
+  const protDe = function (n) { return prot[n] || protegeDe_(n, ''); };
+  grupos.forEach(function (g) {
+    const ps = g.vk.map(protDe);
+    g.dis = { gripe: ps.every(function (p) { return p.gripe; }), covid: ps.every(function (p) { return p.covid; }) };
+    g.mixto = !g.dis.gripe && !g.dis.covid && ps.length > 0;
+    if (g.mixto) g.dis = { gripe: true, covid: true };
+  });
   const recientes = {};
   reg.forEach(function (r) {
     if ((inicio && r.fecha < inicio) || (fin && r.fecha > fin)) return;
     const v = k(r.vacuna);
     if (r.fecha >= desde14) recientes[v] = (recientes[v] || 0) + r.cambio;
-    // Si la dosis se apuntó con su grupo, cuenta entera para ese grupo.
+    const el = elegibles(v, r.fecha);
+    // Si la dosis se apuntó con su grupo, cuenta entera para ese grupo (en su enfermedad).
     const gr = r.grupo ? porNombre[k(r.grupo)] : null;
-    const el = gr && gr.vk.indexOf(v) >= 0 ? [gr] : elegibles(v, r.fecha);
-    if (!el.length) return;
-    const tot = el.reduce(function (s, g) { return s + g.peso; }, 0);
-    el.forEach(function (g) {
-      const parte = tot > 0 ? g.peso / tot : 1 / el.length;
+    const pv = protDe(v);
+    const cob = new Map(); // grupo → parte (cobertura)
+    let nDis = 0;
+    ['gripe', 'covid'].forEach(function (d) {
+      if (!pv[d]) return;
+      let sub = gr && gr.vk.indexOf(v) >= 0 && gr.dis[d] ? [gr] : el.filter(function (g) { return g.dis[d]; });
+      if (!sub.length) return;
+      nDis++;
+      const tot = sub.reduce(function (s, g) { return s + g.peso; }, 0);
+      sub.forEach(function (g) {
+        const parte = tot > 0 ? g.peso / tot : 1 / sub.length;
+        cob.set(g, Math.max(cob.get(g) || 0, parte));
+      });
+    });
+    if (!nDis) return;
+    // Consumo: cada dosis se gasta una vez aunque cuente en dos enfermedades.
+    const totCob = Array.from(cob.values()).reduce(function (s, x) { return s + x; }, 0);
+    cob.forEach(function (parte, g) {
       if (!g.oficial || r.t > g.oficial.t) g.est += r.cambio * parte;
       if (r.fecha >= desde14) {
         g.reciente += r.cambio * parte;
-        g.recienteV[v] = (g.recienteV[v] || 0) + r.cambio * parte;
+        g.recienteV[v] = (g.recienteV[v] || 0) + r.cambio * parte / totCob;
       }
     });
   });
 
+  /*
+   * Techo esperado (opcional, p. ej. la cobertura de la campaña pasada): hay gente que no vendrá
+   * nunca (no acude a la cita, rechaza la vacuna…). Con techo, el ritmo se va frenando a medida
+   * que se acerca a él: cada día se vacuna la misma fracción q de los que aún pueden venir
+   * (q = ritmo actual ÷ pendientes hasta el techo). Así:
+   *   - acumulado tras n días laborables = pendientes × (1 − (1 − q)^n);
+   *   - el objetivo puede no alcanzarse nunca si está por encima del techo;
+   *   - el consumo previsto baja al final de la campaña (no se pide de más).
+   * Sin techo, el ritmo actual se mantiene (como antes).
+   */
   const outG = grupos.map(function (g) {
     const empezado = !g.desde || g.desde <= hoy;
     const dias = empezado ? (laborables_(maxF_(desde14, g.desde || desde14), hoy) || 1) : 0;
@@ -945,9 +1246,33 @@ function calcularPrevision_(c) {
     const vacunados = Math.max(0, Math.round(g.est));
     const faltan = g.meta != null ? Math.max(0, g.meta - vacunados) : null;
     const labRest = fin ? laborables_(maxF_(hoy, g.desde || hoy), fin) : 0;
+    const tope = g.techo > 0 && g.poblacion > 0 ? Math.round(g.poblacion * g.techo / 100) : null;
+    const quedan = tope != null ? Math.max(0, tope - vacunados) : null;
+    const q = quedan ? Math.min(1, ritmo / quedan) : 0;
+    // Recién empezado (3 primeros días laborables): aún no hay ritmo fiable, se usa el plan de la campaña.
+    const arrancando = empezado && !!g.desde && laborables_(g.desde, hoy) <= ARRANQUE_DIAS;
+    const proy = empezado && !arrancando;
+    g.tope = tope;
+    g.q = q;
+    g.proy = proy;
+    g.agotado = quedan === 0; // ya llegó al techo: no se prevén más dosis
     let llega = null;
     if (faltan === 0) llega = 'ok';
-    else if (faltan != null && ritmo > 0 && faltan / ritmo <= 300) llega = sumarLaborables_(hoy, Math.ceil(faltan / ritmo));
+    else if (arrancando) llega = null;
+    else if (faltan != null && tope != null) {
+      if (faltan < quedan && q > 0) {
+        const n = q >= 1 ? 1 : Math.ceil(Math.log(1 - faltan / quedan) / Math.log(1 - q));
+        if (n <= 300) llega = sumarLaborables_(hoy, n);
+      }
+    } else if (faltan != null && ritmo > 0 && faltan / ritmo <= 300) llega = sumarLaborables_(hoy, Math.ceil(faltan / ritmo));
+    // Vacunados previstos al final de la campaña
+    let alFinal = null;
+    if (fin && fin >= hoy) {
+      const extra = !proy ? Math.max(0, (tope != null ? tope : (g.meta || 0)) - vacunados) :
+        tope != null ? quedan * (1 - Math.pow(1 - q, labRest)) : ritmo * labRest;
+      alFinal = vacunados + extra;
+      if (g.poblacion > 0) alFinal = Math.min(alFinal, g.poblacion);
+    }
     g.empezado = empezado;
     g.dias = dias;
     g.llega = llega;
@@ -955,6 +1280,7 @@ function calcularPrevision_(c) {
     let estado = 'sinObjetivo';
     if (!empezado) estado = 'pendiente';
     else if (faltan === 0) estado = 'ok';
+    else if (arrancando) estado = 'arrancando';
     else if (faltan != null) estado = fin && (llega == null || llega > fin) ? 'riesgo' : 'enCamino';
     return {
       nombre: g.nombre, vacunas: g.vacunas, desde: g.desde, poblacion: g.poblacion, objetivo: g.objetivo,
@@ -963,9 +1289,22 @@ function calcularPrevision_(c) {
       faltan: faltan, ritmoDia: r1(ritmo),
       necesarioDia: faltan != null && labRest > 0 ? r1(faltan / labRest) : null,
       llega: llega, estado: estado,
+      techo: g.techo || null,
+      suma: g.suma || '',
+      enfermedad: g.mixto ? 'mixto' : g.dis.gripe && g.dis.covid ? 'gripe y COVID' : g.dis.covid ? 'COVID' : 'gripe',
+      techoBajo: !!(g.techo && g.objetivo && g.techo < g.objetivo),
+      alFinal: alFinal == null ? null : Math.round(alFinal),
+      coberturaFinal: alFinal != null && g.poblacion > 0 ? r1(alFinal / g.poblacion * 100) : null,
       oficial: g.oficial ? { fecha: g.oficial.fecha, n: g.oficial.n } : null
     };
   });
+
+  // Número de día laborable desde hoy (0 = hoy o el primer laborable), para frenar el ritmo.
+  const nLab = {};
+  for (let f = hoy, n = 0, i = 0; i < 400 && (!fin || f <= fin); f = sumarDias_(f, 1), i++) {
+    nLab[f] = n;
+    if (esLaborable_(f)) n++;
+  }
 
   /*
    * Consumo previsto por vacuna y día laborable:
@@ -982,11 +1321,19 @@ function calcularPrevision_(c) {
     let d = sinGrupo[v] || 0;
     grupos.forEach(function (g) {
       if (g.vk.indexOf(v) < 0) return;
-      if (g.empezado) {
+      if (g.proy) {
+        const base = Math.max(0, g.recienteV[v] || 0) / g.dias;
+        if (g.tope != null) {
+          if (g.agotado) return;
+          // Con techo: el ritmo se frena (no se corta al llegar al objetivo: la gente sigue viniendo).
+          d += base * Math.pow(1 - g.q, nLab[f] || 0);
+          return;
+        }
         if (g.llega === 'ok' || (g.llega && f > g.llega)) return;
-        d += Math.max(0, g.recienteV[v] || 0) / g.dias;
-      } else if (g.meta && g.labTotal > 0 && g.desde <= f) {
-        d += g.meta / g.labTotal / g.vk.length;
+        d += base;
+      } else {
+        const diana = g.tope != null ? g.tope : g.meta;
+        if (diana && g.labTotal > 0 && g.desde <= f) d += diana / g.labTotal / g.vk.length;
       }
     });
     return d;
@@ -1049,6 +1396,7 @@ function calcularPrevision_(c) {
     configurada: grupos.length > 0,
     campana: { inicio: inicio, fin: fin, labRestantes: enCampana ? laborables_(hoy, fin) : 0 },
     grupos: outG,
+    agregados: agregados_(outG),
     vacunas: outV,
     reparto: generales[0] ? { fecha: generales[0].fecha, limite: generales[0].limite, hora: generales[0].hora, siguiente: generales[1] ? generales[1].fecha : null } : null,
     repartos: reps.map(function (r) { return { desde: r.desde, hasta: r.hasta, dias: r.diasTxt, antelacion: r.antelacion, hora: r.hora, vacunas: r.vacunasTxt }; }),
@@ -1056,9 +1404,44 @@ function calcularPrevision_(c) {
     vacunasConfig: c.vacunas.map(function (v) { return v.nombre; }),
     plantillas: Object.keys(PLANTILLAS).map(function (id) { return { id: id, nombre: PLANTILLAS[id].nombre }; }),
     correo: c.correo,
+    agendasConfig: c.agendas,
+    asistencia: calcularAsistencia_(c, hoy),
     resumenActivo: resumenActivo_(),
     avisos: estadoAvisos_(c)
   };
+}
+
+/**
+ * Líneas de suma: los grupos con el mismo «Suma en» (p. ej. «60 o más») se suman, porque el objetivo
+ * oficial es del conjunto (Galicia 2026: cobertura ≥ 75 % en 60 o más años). Objetivo = el mayor de sus grupos.
+ */
+function agregados_(grupos) {
+  const por = {};
+  const orden = [];
+  grupos.forEach(function (g) {
+    if (!g.suma) return;
+    const k = g.suma.toLowerCase();
+    if (!por[k]) { por[k] = { nombre: g.suma, grupos: [], poblacion: 0, vacunados: 0, alFinal: 0, finalOk: true, objetivo: 0, faltaPob: false }; orden.push(k); }
+    const a = por[k];
+    a.grupos.push(g.nombre);
+    a.poblacion += g.poblacion || 0;
+    a.vacunados += g.vacunados || 0;
+    if (!g.poblacion) a.faltaPob = true;
+    if (g.alFinal == null) a.finalOk = false; else a.alFinal += g.alFinal;
+    a.objetivo = Math.max(a.objetivo, g.objetivo || 0);
+  });
+  const r1 = function (n) { return Math.round(n * 10) / 10; };
+  return orden.map(function (k) {
+    const a = por[k];
+    const meta = a.objetivo && a.poblacion ? Math.ceil(a.poblacion * a.objetivo / 100) : null;
+    return {
+      nombre: a.nombre, grupos: a.grupos, poblacion: a.poblacion, vacunados: a.vacunados, faltaPob: a.faltaPob,
+      cobertura: a.poblacion ? r1(a.vacunados / a.poblacion * 100) : null,
+      objetivo: a.objetivo || null,
+      faltan: meta != null ? Math.max(0, meta - a.vacunados) : null,
+      coberturaFinal: a.finalOk && a.poblacion ? r1(a.alFinal / a.poblacion * 100) : null
+    };
+  });
 }
 
 /* ----------------------- Resumen por correo ---------------------- */
@@ -1149,11 +1532,23 @@ function enviarResumen_(c) {
     tabla(['Vacuna', 'Dosis'], Object.keys(porVac).sort().map(function (v) { return [escH_(v), nf(porVac[v])]; }));
 
   if (p.configurada) {
-    html += '<h3>Cobertura por grupo</h3>' + tabla(['Grupo', 'Cobertura', 'Objetivo', 'Faltan', 'Llega al objetivo'],
+    html += '<h3>Cobertura por grupo</h3>' + tabla(['Grupo', 'Cobertura', 'Objetivo', 'Faltan', 'Al final (previsto)', 'Llega al objetivo'],
       p.grupos.map(function (g) {
-        const llega = g.estado === 'pendiente' ? 'empieza el ' + fechaCorta_(g.desde) : g.llega === 'ok' ? '✓ alcanzado' :
-          g.llega ? fechaCorta_(g.llega) + (p.campana.fin && g.llega > p.campana.fin ? ' ⚠' : '') : (g.faltan ? '⚠ al ritmo actual, no' : '—');
-        return [escH_(g.nombre), g.cobertura == null ? '—' : nf(g.cobertura) + ' %', g.objetivo ? nf(g.objetivo) + ' %' : '—', nf(g.faltan), llega];
+        const llega = g.estado === 'pendiente' ? 'empieza el ' + fechaCorta_(g.desde) : g.estado === 'arrancando' ? 'empezó el ' + fechaCorta_(g.desde) + ', aún sin ritmo' : g.llega === 'ok' ? '✓ alcanzado' :
+          g.llega ? fechaCorta_(g.llega) + (p.campana.fin && g.llega > p.campana.fin ? ' ⚠' : '') :
+          (g.faltan ? (g.techoBajo ? '⚠ no: techo por debajo' : g.techo ? '⚠ no: el ritmo se frena' : '⚠ al ritmo actual, no') : '—');
+        return [escH_(g.nombre), g.cobertura == null ? '—' : nf(g.cobertura) + ' %', g.objetivo ? nf(g.objetivo) + ' %' : '—', nf(g.faltan),
+          g.coberturaFinal == null ? '—' : nf(g.coberturaFinal) + ' %', llega];
+      }).concat((p.agregados || []).map(function (a) {
+        return ['<b>' + escH_(a.nombre) + '</b> (suma)', a.cobertura == null ? '—' : '<b>' + nf(a.cobertura) + ' %</b>', a.objetivo ? nf(a.objetivo) + ' %' : '—',
+          nf(a.faltan), a.coberturaFinal == null ? '—' : nf(a.coberturaFinal) + ' %', ''];
+      })));
+  }
+  const asis = p.asistencia && p.asistencia.agendas.filter(function (x) { return x.citados; });
+  if (asis && asis.length) {
+    html += '<h3>Asistencia a las citas (últimos ' + p.asistencia.dias + ' días)</h3>' + tabla(['Agenda', 'Citados / día', 'Faltaron', 'Asistencia', 'Citar al día'],
+      asis.map(function (x) {
+        return [escH_(x.agenda), nf(x.citadosDia), nf(x.faltaron), nf(x.asistencia) + ' %', x.citarPara == null ? '—' : nf(x.citarPara)];
       }));
   }
 
@@ -1396,13 +1791,72 @@ function limpiarTexto_(s, max) {
   return /^[=+\-@]/.test(t) ? "'" + t : t;
 }
 
-function listaProfesionales_(lista) {
+/**
+ * Lista de profesionales: nombres sueltos o {nombre, perfil, huecos}.
+ * perfil: uno de «perfiles» (si no existe, sin perfil). huecos: '' = los del perfil; 0 = sin cita.
+ */
+function listaProfesionales_(lista, perfiles) {
   const vistos = {};
+  const pf = {};
+  (perfiles || []).forEach(function (p) { pf[p.nombre.toLowerCase()] = p.nombre; });
   return (lista || [])
-    .map(function (s) { return limpiarTexto_(s, 60); })
-    .filter(function (s) { if (!s || vistos[s.toLowerCase()]) return false; vistos[s.toLowerCase()] = true; return true; })
+    .map(function (x) {
+      const o = x && typeof x === 'object' ? x : { nombre: x };
+      return { n: limpiarTexto_(o.nombre, 60), p: pf[String(o.perfil || '').trim().toLowerCase()] || '', h: huecosTxt_(o.huecos) };
+    })
+    .filter(function (o) { if (!o.n || vistos[o.n.toLowerCase()]) return false; vistos[o.n.toLowerCase()] = true; return true; })
     .slice(0, 200)
-    .map(function (n) { return [n, 'Sí']; });
+    .map(function (o) { return [o.n, 'Sí', o.p, o.h]; });
+}
+
+/** Perfiles: «Enfermería de familia: 14; Enfermería pediátrica: 8; Enfermería obstétrica: 0» → [{nombre, huecos}]. */
+function leerPerfiles_(txt) {
+  const vistos = {};
+  return String(txt == null ? '' : txt).split(/[;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) {
+    const m = x.match(/^(.*?)\s*[:=]\s*(\d+)\s*$/);
+    return m ? { nombre: limpiarTexto_(m[1], 40), huecos: Math.min(200, Number(m[2])) } : { nombre: limpiarTexto_(x, 40), huecos: null };
+  }).filter(function (p) { if (!p.nombre || vistos[p.nombre.toLowerCase()]) return false; vistos[p.nombre.toLowerCase()] = true; return true; }).slice(0, 12);
+}
+function textoPerfiles_(lista) {
+  return lista.map(function (p) { return p.nombre + (p.huecos == null ? '' : ': ' + p.huecos); }).join('; ');
+}
+/** Perfiles que llegan del panel: [{nombre, huecos}]; comprueba nombres y números. */
+function perfilesDe_(lista) {
+  const vistos = {};
+  return (lista || []).slice(0, 12).map(function (p) {
+    const nombre = limpiarTexto_(p && p.nombre, 40).replace(/[:;=]/g, ' ').trim();
+    if (!nombre) return null;
+    if (vistos[nombre.toLowerCase()]) throw new Error('El perfil «' + nombre + '» está repetido.');
+    vistos[nombre.toLowerCase()] = true;
+    const h = huecosTxt_(p.huecos);
+    return { nombre: nombre, huecos: h === '' ? null : h };
+  }).filter(Boolean);
+}
+function huecosTxt_(v) {
+  if (v === '' || v == null) return '';
+  const n = Number(String(v).replace(',', '.'));
+  if (!isFinite(n) || n < 0) return '';
+  return Math.min(200, Math.round(n));
+}
+
+/**
+ * Huecos por día de cada profesional: los suyos propios si los tiene; si no, los de su perfil;
+ * si no, el número general de Configuración. 0 = vacuna sin cita (oportunista, p. ej. la matrona).
+ * Capacidad diaria del centro:
+ *   - si nadie tiene perfil ni huecos propios: enfermeras/os × huecos generales (como antes);
+ *   - si no: suma de los huecos de cada profesional activo.
+ */
+function perfilDe_(c, prof) { return c.perfilProf[prof] || ''; }
+function huecosDe_(c, prof) {
+  const h = c.huecosProf[prof];
+  if (h != null) return h;
+  const pf = c.perfiles.filter(function (p) { return p.nombre === perfilDe_(c, prof); })[0];
+  return pf && pf.huecos != null ? pf.huecos : c.huecos;
+}
+function porPersona_(c) { return Object.keys(c.huecosProf).length > 0 || Object.keys(c.perfilProf).length > 0; }
+function capacidadDia_(c) {
+  if (!porPersona_(c) || !c.profesionales.length) return c.enfermeras * c.huecos;
+  return c.profesionales.reduce(function (s, p) { return s + huecosDe_(c, p); }, 0);
 }
 
 /** Filas de Configuración: lo que ya hay (c) con los cambios de «cambios» encima. */
@@ -1422,8 +1876,177 @@ function filasParams_(c, cambios) {
     [P.correo, o.correo || ''],
     [P.avisoCorreo, o.avisoCorreo ? 'Sí' : 'No'],
     [P.avisoHora, String(o.avisoHora == null ? 9 : o.avisoHora)],
-    [P.clave, o.clave || '']
+    [P.clave, o.clave || ''],
+    [P.agendas, (o.agendas || []).join(', ')],
+    [P.pautas, o.pautasTxt || ''],
+    [P.perfiles, textoPerfiles_(o.perfiles || [])]
   ];
+}
+
+/* ------------------- Vacunas y pautas del contador ------------------- */
+
+/** Frente a qué protege una vacuna: {gripe, covid}. Si la hoja no lo dice, se deduce del nombre. */
+function protegeDe_(nombre, txt) {
+  const s = String(txt == null ? '' : txt).toLowerCase();
+  const g = /grip/.test(s), cv = /covid/.test(s);
+  if (g || cv) return { gripe: g, covid: cv };
+  const n = String(nombre || '').toLowerCase();
+  if (/combriax|mrna-?1083/.test(n)) return { gripe: true, covid: true };
+  if (/covid|comirnaty|spikevax|bimervax|nuvaxovid|vidprevtyn|kostaive/.test(n)) return { gripe: false, covid: true };
+  return { gripe: true, covid: false };
+}
+function protegeTxt_(p) { return p.gripe && p.covid ? PROTEGE[2] : p.covid ? PROTEGE[1] : PROTEGE[0]; }
+
+/**
+ * Pautas: lo que se pone a un paciente en un mismo acto. Texto «Efluelda + Comirnaty30; Efluelda; mCombriax».
+ * Cada pauta: {gripe: vacuna con gripe o '', covid: vacuna solo de COVID o ''}.
+ * Vacío = todas las combinaciones posibles con las vacunas activas.
+ */
+function leerPautas_(txt, vacunas, estricto) {
+  const act = vacunas.filter(function (v) { return v.activa; });
+  const por = {};
+  act.forEach(function (v) { por[v.nombre.toLowerCase()] = v; });
+  const s = String(txt == null ? '' : txt).trim();
+  if (!s) return pautasPorDefecto_(act);
+  const out = [];
+  const vistas = {};
+  s.split(/[;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (p) {
+    const nombres = p.split('+').map(function (x) { return x.trim(); }).filter(Boolean);
+    const vs = nombres.map(function (n) { return por[n.toLowerCase()]; });
+    const malo = function (m) { if (estricto) throw new Error('Pauta «' + limpiarTexto_(p, 60) + '»: ' + m); };
+    if (vs.some(function (v) { return !v; })) return malo('alguna vacuna no está en la lista de vacunas activas.');
+    let gripe = '', covid = '';
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i];
+      if (v.protege.gripe) { if (gripe) return malo('lleva dos vacunas de gripe.'); gripe = v.nombre; }
+      else { if (covid) return malo('lleva dos vacunas de COVID.'); covid = v.nombre; }
+    }
+    if (gripe && covid && por[gripe.toLowerCase()].protege.covid) return malo(gripe + ' ya lleva la COVID.');
+    const k = (gripe + '|' + covid).toLowerCase();
+    if (!vistas[k]) { vistas[k] = true; out.push({ gripe: gripe, covid: covid }); }
+  });
+  if (!out.length && estricto) throw new Error('Pon al menos una pauta.');
+  return out.length ? out : pautasPorDefecto_(act);
+}
+function pautasPorDefecto_(act) {
+  const gripe = act.filter(function (v) { return v.protege.gripe; });
+  const covid = act.filter(function (v) { return !v.protege.gripe; });
+  const out = [];
+  gripe.forEach(function (g) {
+    out.push({ gripe: g.nombre, covid: '' });
+    if (!g.protege.covid) covid.forEach(function (c) { out.push({ gripe: g.nombre, covid: c.nombre }); });
+  });
+  covid.forEach(function (c) { out.push({ gripe: '', covid: c.nombre }); });
+  return out;
+}
+function nombrePauta_(p) { return [p.gripe, p.covid].filter(Boolean).join(' + '); }
+function textoPautas_(lista) { return lista.map(nombrePauta_).join('; '); }
+
+/**
+ * Cuadrícula del contador: filas = vacuna con gripe (partida por grupo si está en varios grupos activos)
+ * y una fila «Solo COVID»; columnas = «sola» + vacunas solo de COVID que salen en alguna pauta.
+ * Cada casilla es un paciente: {gripe, covid, grupo}.
+ */
+function cuadricula_(c) {
+  const pautas = c.pautas;
+  const grupos = leerGrupos_().filter(function (g) { return g.activo; });
+  const cols = [];
+  c.vacunas.forEach(function (v) {
+    if (v.activa && !v.protege.gripe && pautas.some(function (p) { return p.covid === v.nombre; })) cols.push(v.nombre);
+  });
+  const celdas = function (gr) {
+    return [''].concat(cols).map(function (cv) { return pautas.some(function (p) { return p.gripe === gr && p.covid === cv; }); });
+  };
+  // Las filas son de gripe: se parten solo por grupos de gripe (no por «65 o más · COVID»).
+  const prot = {};
+  c.vacunas.forEach(function (v) { prot[v.nombre.toLowerCase()] = v.protege; });
+  const deGripe = function (g) {
+    return g.vacunas.every(function (x) { return (prot[x.toLowerCase()] || protegeDe_(x, '')).gripe; }) ||
+      !g.vacunas.every(function (x) { return (prot[x.toLowerCase()] || protegeDe_(x, '')).covid; }); // mixto: también
+  };
+  const filas = [];
+  c.vacunas.forEach(function (v) {
+    if (!v.activa || !v.protege.gripe || !pautas.some(function (p) { return p.gripe === v.nombre; })) return;
+    const kv = v.nombre.toLowerCase();
+    const suyos = grupos.filter(function (g) { return deGripe(g) && g.vacunas.some(function (x) { return x.toLowerCase() === kv; }); });
+    const base = { gripe: v.nombre, texto: '', ambas: v.protege.covid, celdas: celdas(v.nombre) };
+    if (suyos.length < 2) filas.push(Object.assign({ grupo: '' }, base));
+    else suyos.forEach(function (g) { filas.push(Object.assign({ grupo: g.nombre }, base)); });
+  });
+  if (pautas.some(function (p) { return !p.gripe; })) filas.push({ gripe: '', grupo: '', texto: '', ambas: false, celdas: celdas('') });
+  return { columnas: cols, filas: filas };
+}
+
+/**
+ * Contadores definidos en la hoja «Contadores» (perfiles: «Adultos», «Pediatría»…).
+ * [{nombre, filas: [{gripe, texto, grupo, sola, covid: [...], ambas}]}], en el orden de la hoja.
+ */
+function leerContadores_(c) {
+  const h = libro_().getSheetByName(H_CON);
+  if (!h) return [];
+  return contadoresDe_(c, filas_(h, CAB_CON.length).map(function (r) {
+    return { contador: r[0], gripe: r[1], texto: r[2], grupo: r[3], sola: !esNo_(r[4]), covid: String(r[5] == null ? '' : r[5]).split(/[,;+]+/) };
+  }), false);
+}
+/** Comprueba y ordena filas {contador, gripe, texto, grupo, sola, covid[]}. estricto = error si algo no cuadra. */
+function contadoresDe_(c, filas, estricto) {
+  const vac = {};
+  c.vacunas.forEach(function (v) { if (v.activa) vac[v.nombre.toLowerCase()] = v; });
+  const gru = {};
+  leerGrupos_().forEach(function (g) { if (g.activo) gru[g.nombre.toLowerCase()] = g; });
+  const out = [];
+  const por = {};
+  filas.forEach(function (r) {
+    const nombre = limpiarTexto_(r.contador, 40);
+    if (!nombre) return;
+    const malo = function (m) { if (estricto) throw new Error('Contador «' + nombre + '»: ' + m); };
+    const g = String(r.gripe || '').trim() ? vac[String(r.gripe).trim().toLowerCase()] : null;
+    if (String(r.gripe || '').trim() && (!g || !g.protege.gripe)) return malo('«' + limpiarTexto_(r.gripe, 40) + '» no es una vacuna de gripe activa.');
+    const covid = [];
+    (r.covid || []).forEach(function (x) {
+      x = String(x || '').trim();
+      if (!x) return;
+      const v = vac[x.toLowerCase()];
+      if (!v || v.protege.gripe) return malo('«' + limpiarTexto_(x, 40) + '» no es una vacuna solo de COVID activa.');
+      if (covid.indexOf(v.nombre) < 0) covid.push(v.nombre);
+    });
+    const ambas = !!(g && g.protege.covid);
+    const sola = g ? (ambas ? true : !!r.sola) : false;
+    if (ambas) covid.length = 0;
+    if (!sola && !covid.length) return malo('una fila no tiene ninguna casilla.');
+    let grupo = '';
+    if (String(r.grupo || '').trim()) {
+      const gg = gru[String(r.grupo).trim().toLowerCase()];
+      if (!gg) return malo('el grupo «' + limpiarTexto_(r.grupo, 60) + '» no existe o no está activo.');
+      const vk = g ? g.nombre.toLowerCase() : (covid[0] || '').toLowerCase();
+      if (!gg.vacunas.some(function (x) { return x.toLowerCase() === vk; })) return malo('el grupo «' + gg.nombre + '» no usa ' + (g ? g.nombre : covid[0]) + '.');
+      grupo = gg.nombre;
+    }
+    if (!por[nombre.toLowerCase()]) { por[nombre.toLowerCase()] = { nombre: nombre, filas: [] }; out.push(por[nombre.toLowerCase()]); }
+    por[nombre.toLowerCase()].filas.push({ gripe: g ? g.nombre : '', texto: limpiarTexto_(r.texto, 40), grupo: grupo, sola: sola, covid: covid, ambas: ambas });
+  });
+  return out.slice(0, 12);
+}
+/** Cuadrícula de un contador: columnas = vacunas de COVID que salen en sus filas (en el orden de «Vacunas»). */
+function cuadriculaDe_(c, k) {
+  const cols = c.vacunas.filter(function (v) {
+    return k.filas.some(function (f) { return f.covid.indexOf(v.nombre) >= 0; });
+  }).map(function (v) { return v.nombre; });
+  return {
+    columnas: cols,
+    filas: k.filas.map(function (f) {
+      return { gripe: f.gripe, texto: f.texto, grupo: f.grupo, ambas: f.ambas,
+        celdas: f.ambas ? [true] : [f.sola].concat(cols.map(function (cv) { return f.covid.indexOf(cv) >= 0; })) };
+    })
+  };
+}
+
+/** «GRI, Gri2» → ['GRI', 'Gri2'] (sin repetidas, máximo 8). */
+function listaAgendas_(s) {
+  const vistos = {};
+  return String(s == null ? '' : s).split(/[,;]+/).map(function (x) { return limpiarTexto_(x, 30); })
+    .filter(function (x) { if (!x || vistos[x.toLowerCase()]) return false; vistos[x.toLowerCase()] = true; return true; })
+    .slice(0, 8);
 }
 
 function esNo_(v) { return /^n/i.test(String(v == null ? '' : v).trim()); }
@@ -1535,6 +2158,21 @@ function asegurarHojas_() {
     h.getRange(1, 1, h.getMaxRows(), 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
     h.setColumnWidth(3, 220); h.setColumnWidth(5, 260);
   }
+  h = ss.getSheetByName(H_CON);
+  if (!h) { h = ss.insertSheet(H_CON); reescribir_(h, CAB_CON, [], [1, 2, 3, 4, 5, 6]); h.setColumnWidth(1, 180); h.setColumnWidth(3, 200); h.setColumnWidth(4, 180); h.setColumnWidth(6, 220); }
+  h = ss.getSheetByName(H_PAC);
+  if (!h) {
+    h = ss.insertSheet(H_PAC);
+    reescribir_(h, CAB_PAC, [], [2, 4]);
+    h.getRange(1, 1, h.getMaxRows(), 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+    h.setColumnWidth(4, 260);
+  }
+  h = ss.getSheetByName(H_CIT);
+  if (!h) {
+    h = ss.insertSheet(H_CIT);
+    reescribir_(h, CAB_CIT, [], [2, 3]);
+    h.getRange(1, 1, h.getMaxRows(), 1).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+  }
   h = ss.getSheetByName(H_REP);
   if (!h) { h = ss.insertSheet(H_REP); reescribir_(h, CAB_REP, [], [1, 2, 3, 5, 6]); h.setColumnWidth(3, 160); h.setColumnWidth(4, 260); h.setColumnWidth(6, 220); }
 }
@@ -1553,12 +2191,44 @@ function migrar_() {
     if (hv.getMaxColumns() < CAB_VAC.length) hv.insertColumnsAfter(hv.getMaxColumns(), CAB_VAC.length - hv.getMaxColumns());
     const cab = hv.getRange(1, 1, 1, CAB_VAC.length).getValues()[0];
     if (String(cab[3]).trim() === '') hv.getRange(1, 4).setValue(CAB_VAC[3]).setFontWeight('bold');
+    // Vacunas: «Protege frente a» (v1.4). Se rellena según el nombre; se puede cambiar en el panel.
+    if (String(cab[4]).trim() === '') {
+      hv.getRange(1, 5).setValue(CAB_VAC[4]).setFontWeight('bold');
+      const nv = hv.getLastRow() - 1;
+      if (nv > 0) {
+        const noms = hv.getRange(2, 1, nv, 1).getValues();
+        hv.getRange(2, 5, nv, 1).setValues(noms.map(function (r) { return [String(r[0]).trim() ? protegeTxt_(protegeDe_(String(r[0]), '')) : '']; }));
+      }
+    }
+    // Profesionales: «Huecos por día» (v1.4)
+    const hp = ss.getSheetByName(H_PRO);
+    if (hp) {
+      if (hp.getMaxColumns() < CAB_PRO.length) hp.insertColumnsAfter(hp.getMaxColumns(), CAB_PRO.length - hp.getMaxColumns());
+      const cp = hp.getRange(1, 3, 1, 2).getValues()[0];
+      if (String(cp[0]).trim() === '' && String(cp[1]).trim() === '') hp.getRange(1, 3, 1, 2).setValues([[CAB_PRO[2], CAB_PRO[3]]]).setFontWeight('bold');
+    }
+    // Registro: «Paciente» y «Pauta» (v1.4)
+    const hr2 = ss.getSheetByName(H_REG);
+    if (hr2) {
+      if (hr2.getMaxColumns() < CAB_REG.length) hr2.insertColumnsAfter(hr2.getMaxColumns(), CAB_REG.length - hr2.getMaxColumns());
+      const cr = hr2.getRange(1, 10, 1, 3).getValues()[0];
+      if (String(cr[0]).trim() === '') hr2.getRange(1, 10, 1, 2).setValues([[CAB_REG[9], CAB_REG[10]]]).setFontWeight('bold');
+      if (String(cr[2]).trim() === '') hr2.getRange(1, 12).setValue(CAB_REG[11]).setFontWeight('bold');
+    }
 
     // Registro: columna «Grupo» (v1.3)
     const hg = ss.getSheetByName(H_REG);
     if (hg) {
       if (hg.getMaxColumns() < CAB_REG.length) hg.insertColumnsAfter(hg.getMaxColumns(), CAB_REG.length - hg.getMaxColumns());
       if (String(hg.getRange(1, 9).getValues()[0][0]).trim() === '') hg.getRange(1, 9).setValue(CAB_REG[8]).setFontWeight('bold');
+    }
+
+    // Grupos: columna «Techo esperado %» (v1.4)
+    const hgr = ss.getSheetByName(H_GRU);
+    if (hgr) {
+      if (hgr.getMaxColumns() < CAB_GRU.length) hgr.insertColumnsAfter(hgr.getMaxColumns(), CAB_GRU.length - hgr.getMaxColumns());
+      if (String(hgr.getRange(1, 7).getValues()[0][0]).trim() === '') hgr.getRange(1, 7).setValue(CAB_GRU[6]).setFontWeight('bold');
+      if (String(hgr.getRange(1, 8).getValues()[0][0]).trim() === '') hgr.getRange(1, 8).setValue(CAB_GRU[7]).setFontWeight('bold');
     }
 
     // Repartos: columna «Vacunas» (v1.1)
@@ -1612,11 +2282,24 @@ function leerConfig_() {
   const vacunas = filas_(ss.getSheetByName(H_VAC), CAB_VAC.length)
     .filter(function (r) { return String(r[0]).trim(); })
     .map(function (r) {
-      return { nombre: String(r[0]).trim(), necesarias: num_(r[1]), activa: !esNo(r[2]), minimo: Math.round(num_(r[3])) };
+      const nombre = String(r[0]).trim();
+      const pr = protegeDe_(nombre, r[4]);
+      return { nombre: nombre, necesarias: num_(r[1]), activa: !esNo(r[2]), minimo: Math.round(num_(r[3])), protege: pr, protegeTxt: protegeTxt_(pr) };
     });
-  const profesionales = filas_(ss.getSheetByName(H_PRO), 2)
-    .filter(function (r) { return String(r[0]).trim() && !esNo(r[1]); })
-    .map(function (r) { return String(r[0]).trim(); });
+  const filasPro = filas_(ss.getSheetByName(H_PRO), 4).filter(function (r) { return String(r[0]).trim() && !esNo(r[1]); });
+  const profesionales = filasPro.map(function (r) { return String(r[0]).trim(); });
+  const perfiles = leerPerfiles_(p[P.perfiles]);
+  const pfN = {};
+  perfiles.forEach(function (x) { pfN[x.nombre.toLowerCase()] = x.nombre; });
+  const huecosProf = {}; // solo los que tienen huecos propios
+  const perfilProf = {}; // solo los que tienen perfil
+  filasPro.forEach(function (r) {
+    const n = String(r[0]).trim();
+    const pf = pfN[String(r[2] == null ? '' : r[2]).trim().toLowerCase()];
+    if (pf) perfilProf[n] = pf;
+    const h = huecosTxt_(r[3]);
+    if (h !== '') huecosProf[n] = h;
+  });
   return {
     centro: String(p[P.centro] == null ? '' : p[P.centro]).trim(),
     enfermeras: num_(p[P.enf]),
@@ -1630,8 +2313,14 @@ function leerConfig_() {
     avisoCorreo: !esNo(p[P.avisoCorreo] == null ? 'No' : p[P.avisoCorreo]),
     avisoHora: horaAviso_(p[P.avisoHora]),
     clave: String(p[P.clave] == null ? '' : p[P.clave]).trim(),
+    agendas: listaAgendas_(p[P.agendas]),
+    pautasTxt: String(p[P.pautas] == null ? '' : p[P.pautas]).trim(),
+    pautas: leerPautas_(p[P.pautas], vacunas, false),
     vacunas: vacunas,
-    profesionales: profesionales
+    profesionales: profesionales,
+    huecosProf: huecosProf,
+    perfilProf: perfilProf,
+    perfiles: perfiles
   };
 }
 
@@ -1682,7 +2371,11 @@ function filasRegistro_(valores) {
       profesional: String(r[4] || 'Sin nombre'),
       vacuna: String(r[5] || ''),
       cambio: Number(r[6]) || 0,
-      grupo: String(r[8] == null ? '' : r[8]).trim()
+      grupo: String(r[8] == null ? '' : r[8]).trim(),
+      // Filas anteriores a la v1.4: cada dosis cuenta como un paciente.
+      paciente: r[9] === '' || r[9] == null ? (Number(r[6]) || 0) : (Number(r[9]) || 0),
+      pauta: String(r[10] == null || r[10] === '' ? (r[5] || '') : r[10]).trim(),
+      fila: String(r[11] == null ? '' : r[11]).trim()
     });
   });
   return out;

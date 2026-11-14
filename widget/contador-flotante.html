@@ -44,6 +44,22 @@
   .vacio{color:var(--mut);font-size:.85rem;padding:6px}
   .mult{font-size:.75rem;color:var(--mut);text-align:center;font-variant-numeric:tabular-nums;min-height:1.1em}
   .mult .ok{color:var(--ok);font-weight:700}
+  /* Cuadrícula: un toque = un paciente */
+  .cua{display:grid;gap:4px;align-items:stretch}
+  .cua .ch{font-size:.66rem;color:var(--mut);text-align:center;font-weight:700;align-self:end;line-height:1.1;overflow:hidden;white-space:nowrap}
+  .cua .cr{font-size:.74rem;font-weight:700;display:flex;flex-direction:column;justify-content:center;line-height:1.1;padding-left:2px;overflow:hidden}
+  .cua .cr small{font-size:.64rem;color:var(--mut);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cel{all:unset;box-sizing:border-box;cursor:pointer;min-height:38px;border-radius:8px;background:var(--c);color:#fff;font-weight:800;font-size:1.05rem;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}
+  .cel:active,.cel.flash{filter:brightness(1.3)}
+  .cel:focus-visible{outline:3px solid var(--tx);outline-offset:1px}
+  .cel.ancha{justify-content:space-between;padding:0 12px;font-size:.85rem}
+  .cel.ancha b{font-size:1.05rem}
+  .des{font:inherit;font-size:.8rem;font-weight:700;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);padding:5px 9px;cursor:pointer;white-space:nowrap}
+  .des:disabled{opacity:.4;cursor:default}
+  .confd{border:1px solid var(--warn);border-radius:8px;padding:7px;font-size:.8rem;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+  .confd div{display:flex;gap:6px}
+  .confd button{flex:1;font:inherit;font-weight:700;font-size:.8rem;border-radius:7px;padding:6px;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+  .confd button.si{background:var(--err);border-color:var(--err);color:#fff}
 </style>
 </head>
 <body>
@@ -73,6 +89,10 @@
       <button type="button" data-t="Tarde" aria-pressed="false">Tarde</button>
     </div>
   </div>
+  <div id="kW" hidden>
+    <label for="kSel">Contador</label>
+    <select id="kSel"></select>
+  </div>
   <button class="flotar" id="flotar" type="button" disabled>Abrir contador flotante</button>
   <p class="msg" id="msg" role="status">Conectando…</p>
   <p class="sub">No cierres esta pestaña mientras trabajas; puedes minimizarla. Si cierras la ventanita, vuelve aquí y pulsa el botón otra vez.</p>
@@ -80,7 +100,8 @@
     <div class="mini" id="mini">
       <div class="mcab"><b id="mNom">Elige tu nombre</b><span class="dot" id="dot"></span></div>
       <div id="filas"><div class="vacio">Cargando vacunas…</div></div>
-      <div class="mtot"><span>Mis dosis hoy</span><b id="mTot">–</b></div>
+      <div class="mtot"><span style="white-space:nowrap"><b id="mTot">–</b> pac. · <b id="mDos">–</b> dosis</span><button type="button" class="des" id="deshacer" disabled title="Quitar el último paciente apuntado">↶ Deshacer</button></div>
+      <div id="conf"></div>
       <div class="mult" id="mUlt"></div>
     </div>
   </div>
@@ -114,14 +135,13 @@
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
   var el = {};
-  ['prof','profTxt','flotar','msg','sitio','mini','mNom','dot','filas','mTot','mUlt'].forEach(function(id){ el[id] = document.getElementById(id); });
+  ['prof','profTxt','flotar','msg','sitio','mini','mNom','dot','filas','mTot','mDos','mUlt','deshacer','conf'].forEach(function(id){ el[id] = document.getElementById(id); });
 
   var cfg = store.get('wid_cfg', null);
   var cola = store.get('wid_cola', []);
   var prefs = store.get('wid_prefs', {});
   var hoy = diaDe(Date.now());
-  var base = {}, baseProf = null, baseDia = null, ultSrv = 0;
-  var ultLocal = store.get('wid_ult', {}); // {profesional: {t, id}} última dosis sumada en este ordenador
+  var base = { casillas: {}, pila: [], pac: 0, dosis: 0 }, baseProf = null, baseDia = null, ultSrv = 0;
   var enviando = false, error = false, gen = 0, pip = null, conectado = false;
 
   // El enlace puede llevar la clave del equipo al final (…/exec?k=CLAVE); se manda en cada petición.
@@ -159,7 +179,16 @@
   function ponerTurno(t){
     document.querySelectorAll('.seg button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === t)); });
   }
-  function guardarPrefs(){ prefs = { prof: prof(), turno: turno(), dia: hoy }; store.set('wid_prefs', prefs); }
+  function guardarPrefs(){ prefs = { prof: prof(), turno: turno(), dia: hoy, contador: contadorSel() }; store.set('wid_prefs', prefs); }
+  // Contador (perfil) de este ordenador: se elige una vez y se recuerda (p. ej. «Pediatría»).
+  function contadores(){ return (cfg && cfg.contadores) || []; }
+  function contadorSel(){ var ks = contadores(); if (!ks.length) return ''; var v = document.getElementById('kSel').value || prefs.contador || ''; return ks.some(function(k){ return k.nombre === v; }) ? v : ks[0].nombre; }
+  function montarContadores(){
+    var ks = contadores(), sel = document.getElementById('kSel');
+    document.getElementById('kW').hidden = ks.length < 2;
+    sel.innerHTML = ks.map(function(k){ return '<option>' + esc(k.nombre) + '</option>'; }).join('');
+    if (ks.length) sel.value = ks.some(function(k){ return k.nombre === prefs.contador; }) ? prefs.contador : ks[0].nombre;
+  }
   function montarProfesionales(){
     var lista = cfg.profesionales || [];
     if (lista.length){
@@ -178,78 +207,109 @@
   }
 
   // ---------- Recuentos ----------
+  // El contador es una cuadrícula: filas = vacuna de gripe (partida por grupo si hace falta),
+  // columnas = «sola» o + una vacuna de COVID. Cada casilla es UN paciente con una o dos dosis.
+  // Cada dosis se guarda como una fila del Registro; la primera lleva Paciente = 1 y la segunda 0.
   function baseOk(){ var p = prof(); return !!p && baseProf === p && baseDia === hoy; }
-  // Cada botón es una vacuna o, si la vacuna está en varios grupos, una vacuna en un grupo.
-  // Clave de botón: «vacuna|grupo» (grupo vacío si no hay que elegirlo).
-  function botones(){
-    if (!cfg) return [];
-    return (cfg.botones && cfg.botones.length) ? cfg.botones : (cfg.vacunas || []).map(function(v){ return { vacuna: v, grupo: '' }; });
+  function cuadricula(){
+    if (!cfg) return { columnas: [], filas: [] };
+    var ks = contadores(), kn = contadorSel();
+    for (var x = 0; x < ks.length; x++) if (ks[x].nombre === kn) return ks[x].cuadricula;
+    if (cfg.cuadricula && cfg.cuadricula.filas && cfg.cuadricula.filas.length) return cfg.cuadricula;
+    // Servidor anterior a la v1.4: una fila por vacuna, sin columnas de COVID.
+    return { columnas: [], filas: (cfg.vacunas || []).map(function(v){ return { gripe: v, grupo: '', celdas: [true] }; }) };
   }
-  function claveB(v, g){ return v + '|' + (g || ''); }
+  function pautaDe(f, j){ var cv = j ? cuadricula().columnas[j - 1] : ''; return [f.gripe, cv].filter(Boolean).join(' + '); }
+  function claveC(pauta, g, fila){ return pauta + '|' + (g || '') + '|' + (fila || ''); }
+  function vacio(){ return { casillas: {}, pila: [], pac: 0, dosis: 0 }; }
   function baseDe(r){
-    if (r.miasG) return r.miasG;
-    var o = {}; Object.keys(r.mias || {}).forEach(function(v){ o[claveB(v, '')] = r.mias[v]; }); return o;
+    var b = vacio();
+    b.pac = Number(r.pacientes) || 0; b.dosis = Number(r.dosis) || 0;
+    b.casillas = r.casillas || {}; b.pila = (r.pila || []).slice();
+    if (!r.casillas){ // servidor anterior: cada dosis es un paciente
+      Object.keys(r.miasG || r.mias || {}).forEach(function(k){
+        var n = (r.miasG || r.mias)[k], kk = r.miasG ? k : claveC(k, '');
+        b.casillas[kk] = n; b.pac += n; b.dosis += n;
+      });
+    }
+    return b;
   }
-  function pendientes(p){
-    var r = {};
-    cola.forEach(function(e){
-      if (e.profesional !== p || diaDe(e.momento) !== hoy) return;
-      var k = claveB(e.vacuna, e.grupo);
-      r[k] = (r[k] || 0) + e.cambio;
-    });
-    return r;
+  // Suma una fila (dosis) a un recuento: la misma cuenta que hace el servidor.
+  function aplicar(st, e){
+    st.dosis += e.cambio;
+    var pac = e.paciente == null ? e.cambio : e.paciente;
+    if (!pac) return;
+    var pauta = e.pauta || e.vacuna, g = e.grupo || '', fl = e.fila || '', k = claveC(pauta, g, fl);
+    st.pac += pac;
+    st.casillas[k] = (st.casillas[k] || 0) + pac;
+    if (pac > 0) st.pila.push({ p: pauta, g: g, f: fl, t: e.momento, id: e.id });
+    else for (var i = st.pila.length - 1; i >= 0; i--) if (st.pila[i].p === pauta && st.pila[i].g === g && (st.pila[i].f || '') === fl){ st.pila.splice(i, 1); break; }
   }
-  function valores(){
-    var p = prof(), pen = pendientes(p), b = baseOk() ? base : {}, r = {};
-    botones().forEach(function(x){ var k = claveB(x.vacuna, x.grupo); r[k] = (b[k] || 0) + (pen[k] || 0); });
-    return r;
+  function estado(){
+    var p = prof(), b = baseOk() ? base : vacio();
+    var st = { casillas: {}, pila: b.pila.slice(), pac: b.pac, dosis: b.dosis };
+    Object.keys(b.casillas).forEach(function(k){ st.casillas[k] = b.casillas[k]; });
+    cola.forEach(function(e){ if (e.profesional === p && diaDe(e.momento) === hoy) aplicar(st, e); });
+    return st;
   }
 
   function pintarFilas(){
-    var bs = botones();
-    el.filas.innerHTML = bs.length ? bs.map(function(b, i){
-      var txt = b.vacuna + (b.grupo ? ' (' + b.grupo + ')' : '');
-      return '<div class="fila" style="--c:' + COLORES[i % COLORES.length] + '">' +
-        '<button type="button" class="mas" data-i="' + i + '" title="Sumar una dosis de ' + esc(txt) + '"><span>' + esc(b.vacuna) +
-          (b.grupo ? '<small class="gru">' + esc(b.grupo) + '</small>' : '') + '</span><span class="num">0</span></button>' +
-        '<button type="button" class="menos" data-i="' + i + '" title="Restar una dosis de ' + esc(txt) + '">−1</button></div>';
-    }).join('') : '<div class="vacio">No hay vacunas activas. Revisa la hoja «Vacunas».</div>';
-  }
-  function pintar(){
-    var p = prof(), ok = baseOk() || !conectado, vals = valores(), total = 0, bs = botones();
-    el.mNom.textContent = p ? p + ' · ' + turno() : 'Elige tu nombre';
-    el.filas.querySelectorAll('.fila').forEach(function(f){
-      var b = bs[Number(f.querySelector('.mas').getAttribute('data-i'))], n = b ? (vals[claveB(b.vacuna, b.grupo)] || 0) : 0;
-      total += n;
-      f.querySelector('.num').textContent = p ? (ok ? n : '…') : '–';
-      f.querySelector('.menos').disabled = !p || n <= 0;
+    var q = cuadricula(), nc = 1 + q.columnas.length;
+    if (!q.filas.length){ el.filas.innerHTML = '<div class="vacio">No hay vacunas activas. Revisa la hoja «Vacunas».</div>'; return; }
+    var h = '<div class="cua" style="grid-template-columns:78px repeat(' + nc + ',1fr)">';
+    if (nc > 1) h += '<div></div>' + ['sola'].concat(q.columnas).map(function(c, j){
+      return '<div class="ch" title="' + esc(j ? '+ ' + c : 'Solo la vacuna de la fila') + '">' + esc(j ? '+ ' + corto(c) : c) + '</div>';
+    }).join('');
+    q.filas.forEach(function(f, i){
+      var col = COLORES[i % COLORES.length];
+      var sub = f.texto || f.grupo || (f.ambas ? 'gripe + COVID' : '');
+      h += '<div class="cr">' + esc(f.gripe || 'Solo COVID') + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>';
+      if (f.ambas){
+        h += '<button type="button" class="cel ancha" data-f="' + i + '" data-j="0" style="--c:' + col + ';grid-column:span ' + nc + '" title="' + esc(f.gripe) + ': un pinchazo"><span>1 pinchazo</span><b>0</b></button>';
+        return;
+      }
+      for (var j = 0; j < nc; j++){
+        h += f.celdas[j] ? '<button type="button" class="cel" data-f="' + i + '" data-j="' + j + '" style="--c:' + col + '" title="' + esc(pautaDe(f, j) + (f.texto || f.grupo ? ' (' + (f.texto || f.grupo) + ')' : '')) + '"><b>0</b></button>' : '<div></div>';
+      }
     });
-    el.mTot.textContent = p ? (ok ? total : '…') : '–';
+    el.filas.innerHTML = h + '</div>';
+  }
+  function corto(n){ return n.length > 7 ? n.slice(0, 6) + '.' : n; }
+
+  function pintar(){
+    var p = prof(), ok = baseOk() || !conectado, st = estado(), q = cuadricula();
+    el.mNom.textContent = p ? p + ' · ' + turno() + (contadores().length > 1 ? ' · ' + contadorSel() : '') : 'Elige tu nombre';
+    el.filas.querySelectorAll('.cel').forEach(function(b){
+      var f = q.filas[+b.getAttribute('data-f')], n = f ? (st.casillas[claveC(pautaDe(f, +b.getAttribute('data-j')), f.grupo, f.texto)] || 0) : 0;
+      b.querySelector('b').textContent = p ? (ok ? n : '…') : '–';
+    });
+    el.mTot.textContent = p ? (ok ? st.pac : '…') : '–';
+    el.mDos.textContent = p ? (ok ? st.dosis : '…') : '–';
+    el.deshacer.disabled = !p || !st.pila.length;
+    if (!st.pila.length) cerrarConf();
     var n = cola.length;
     el.dot.className = 'dot' + (error ? ' err' : n ? ' warn' : '');
     el.dot.title = error ? 'Sin conexión: ' + n + ' sin enviar, se reintentará' : n ? 'Enviando ' + n + '…' : 'Todo guardado';
-    pintarUlt();
+    pintarUlt(st);
     el.flotar.disabled = !cfg || !p;
     if (cfg && conectado && !p) msg('Elige tu nombre para empezar.');
     else if (p && el.msg.textContent === 'Elige tu nombre para empezar.') msg('Listo. Pulsa «Abrir contador flotante».');
   }
 
-  // Última vacuna: «Última vacuna 12:30 · hace 3 min ✓»
-  function pintarUlt(){
+  // Último paciente: «Último: Efluelda + Comirnaty30 · 12:30 (hace 3 min) ✓»
+  function pintarUlt(st){
     var p = prof();
     if (!p){ el.mUlt.textContent = ''; return; }
-    var loc = ultLocal[p], t = baseOk() ? ultSrv : 0, pend = false;
-    if (loc && diaDe(loc.t) === hoy && loc.t >= t){
-      t = loc.t;
-      pend = cola.some(function(e){ return e.id === loc.id; });
-    }
-    if (!t || diaDe(t) !== hoy){ el.mUlt.textContent = (baseOk() || !conectado) ? 'Ninguna vacuna hoy todavía' : ''; return; }
-    var min = Math.floor((Date.now() - t) / 60000), hace;
-    if (min < 1) hace = 'ahora mismo';
+    st = st || estado();
+    var u = st.pila[st.pila.length - 1];
+    if (!u){ el.mUlt.textContent = (baseOk() || !conectado) ? 'Ninguna vacuna hoy todavía' : ''; return; }
+    var pend = cola.some(function(e){ return e.id === u.id; });
+    var min = Math.floor((Date.now() - u.t) / 60000), hace;
+    if (min < 1) hace = 'ahora';
     else if (min < 60) hace = 'hace ' + min + ' min';
     else hace = 'hace ' + Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + (min % 60) + ' min' : '');
-    el.mUlt.innerHTML = 'Última vacuna ' + fmtHM.format(new Date(t)) + ' · ' + hace + ' ' +
-      (pend ? '<span title="Enviando">⏳</span>' : '<span class="ok" title="Guardada en la hoja">✓</span>');
+    el.mUlt.innerHTML = 'Último: ' + esc(u.p) + ' · ' + fmtHM.format(new Date(u.t)) + ' (' + hace + ') ' +
+      (pend ? '<span title="Enviando">⏳</span>' : '<span class="ok" title="Guardado en la hoja">✓</span>');
   }
 
   // ---------- Servidor ----------
@@ -259,7 +319,7 @@
     if (cola.some(function(e){ return e.profesional === p; })) return; // primero se envía lo pendiente
     api({ api: 'hoy', profesional: p }).then(function(r){
       if (g !== gen || p !== prof()) return;
-      hoy = r.hoy || hoy; base = baseDe(r); ultSrv = Number(r.ultima) || 0; baseProf = p; baseDia = hoy; error = false;
+      hoy = r.hoy || hoy; base = baseDe(r); baseProf = p; baseDia = hoy; error = false;
     }).catch(function(e){ error = true; if (esClave(e)) msg(MSG_CLAVE, true); }).then(pintar);
   }
   function enviar(){
@@ -271,8 +331,7 @@
       (r.guardados || []).forEach(function(id){ guard[id] = hechos[id] = true; });
       (r.rechazados || []).forEach(function(id){ hechos[id] = true; });
       lote.forEach(function(e){
-        var kb = claveB(e.vacuna, e.grupo);
-        if (guard[e.id] && e.profesional === baseProf && diaDe(e.momento) === baseDia) base[kb] = (base[kb] || 0) + e.cambio;
+        if (guard[e.id] && e.profesional === baseProf && diaDe(e.momento) === baseDia) aplicar(base, e);
       });
       cola = cola.filter(function(e){ return !hechos[e.id]; });
       store.set('wid_cola', cola);
@@ -285,19 +344,33 @@
     });
   }
 
-  function tocar(i, c){
-    var bt = botones()[i]; if (!bt) return;
+  // Un paciente (signo +1) o deshacer uno (−1): una fila por dosis, la primera con Paciente = ±1.
+  function apuntar(pauta, grupo, fila, signo){
     var p = prof();
-    if (!p){ msg('Primero elige tu nombre.', true); return; }
-    if (c < 0 && (valores()[claveB(bt.vacuna, bt.grupo)] || 0) <= 0) return;
-    var ev = { id: uid(), momento: Date.now(), profesional: p, turno: turno(), vacuna: bt.vacuna, grupo: bt.grupo || '', cambio: c };
-    cola.push(ev);
+    if (!p){ msg('Primero elige tu nombre.', true); return null; }
+    var acto = uid(), t = Date.now();
+    pauta.split(' + ').forEach(function(v, i){
+      cola.push({ id: acto + '-' + i, momento: t, profesional: p, turno: turno(), vacuna: v, grupo: grupo || '',
+                  cambio: signo, paciente: i === 0 ? signo : 0, pauta: pauta, fila: fila || '' });
+    });
     store.set('wid_cola', cola);
-    if (c > 0){ ultLocal[p] = { t: ev.momento, id: ev.id }; store.set('wid_ult', ultLocal); }
-    pintar();
-    var b = el.filas.querySelector('.mas[data-i="' + i + '"]');
+    pintar(); enviar();
+    return acto;
+  }
+  function tocar(fi, j){
+    var f = cuadricula().filas[fi]; if (!f) return;
+    cerrarConf();
+    if (!apuntar(pautaDe(f, j), f.grupo, f.texto, 1)) return;
+    var b = el.filas.querySelector('.cel[data-f="' + fi + '"][data-j="' + j + '"]');
     if (b){ b.classList.add('flash'); setTimeout(function(){ b.classList.remove('flash'); }, 160); }
-    enviar();
+  }
+  // Deshacer: pregunta antes cuál se quita (el último paciente apuntado hoy).
+  function cerrarConf(){ el.conf.innerHTML = ''; }
+  function pedirDeshacer(){
+    var st = estado(), u = st.pila[st.pila.length - 1];
+    if (!u) return;
+    el.conf.innerHTML = '<div class="confd"><span>¿Quitar <b>' + esc(u.p) + '</b>' + (u.f || u.g ? ' (' + esc(u.f || u.g) + ')' : '') + ' de las ' + fmtHM.format(new Date(u.t)) + '?</span>' +
+      '<div><button type="button" class="si" data-x="si">Sí, quitar</button><button type="button" data-x="no">No</button></div></div>';
   }
 
   // ---------- Ventana flotante ----------
@@ -307,8 +380,8 @@
       msg('Este navegador no permite ventanas flotantes. Abre este archivo con Google Chrome o Microsoft Edge actualizados. Mientras, puedes usar el contador de abajo.', true);
       return;
     }
-    var n = botones().length;
-    window.documentPictureInPicture.requestWindow({ width: 250, height: 100 + n * 50 }).then(function(w){
+    var n = cuadricula().filas.length;
+    window.documentPictureInPicture.requestWindow({ width: 260, height: 130 + n * 42 }).then(function(w){
       pip = w;
       var st = w.document.createElement('style');
       st.textContent = document.getElementById('estilos').textContent;
@@ -324,7 +397,14 @@
   // ---------- Eventos ----------
   el.mini.addEventListener('click', function(ev){
     var b = ev.target.closest('button'); if (!b || b.disabled) return;
-    tocar(Number(b.getAttribute('data-i')), b.classList.contains('menos') ? -1 : 1);
+    if (b.classList.contains('cel')) tocar(+b.getAttribute('data-f'), +b.getAttribute('data-j'));
+    else if (b === el.deshacer) pedirDeshacer();
+    else if (b.getAttribute('data-x') === 'no') cerrarConf();
+    else if (b.getAttribute('data-x') === 'si'){
+      var st = estado(), u = st.pila[st.pila.length - 1];
+      cerrarConf();
+      if (u) apuntar(u.p, u.g, u.f, -1);
+    }
   });
   el.prof.addEventListener('change', function(){
     el.profTxt.hidden = this.value !== '__otro';
@@ -338,6 +418,7 @@
   document.querySelectorAll('.seg button').forEach(function(b){
     b.addEventListener('click', function(){ ponerTurno(b.getAttribute('data-t')); guardarPrefs(); pintar(); });
   });
+  document.getElementById('kSel').addEventListener('change', function(){ guardarPrefs(); cerrarConf(); pintarFilas(); pintar(); });
   el.flotar.addEventListener('click', flotar);
   window.addEventListener('online', enviar);
   window.addEventListener('beforeunload', function(e){ if (cola.length){ e.preventDefault(); e.returnValue = ''; } });
@@ -347,7 +428,7 @@
     if (cola.length) enviar();
   }, 15000);
   setInterval(function(){ if (!cola.length) cargarBase(); }, 120000);
-  setInterval(pintarUlt, 20000);
+  setInterval(function(){ pintarUlt(); }, 20000);
 
   // ---------- Inicio ----------
   function pintarCentro(){ var c = (cfg && cfg.centro) || ''; document.getElementById('centro').textContent = c; document.title = 'Contador flotante' + (c ? ' · ' + c : ''); }
@@ -387,7 +468,7 @@
       if (partir(u).base !== partir(antes).base){
         // Otro centro u otra hoja: se olvida la lista de vacunas y nombres guardada.
         try { localStorage.removeItem('wid_cfg'); } catch(x){}
-        cfg = null; base = {}; baseProf = null; baseDia = null; ultSrv = 0;
+        cfg = null; base = { casillas: {}, pila: [], pac: 0, dosis: 0 }; baseProf = null; baseDia = null; ultSrv = 0;
         el.filas.innerHTML = '<div class="vacio">Cargando vacunas…</div>';
       }
       b.disabled = false; m.textContent = '';
@@ -416,18 +497,19 @@
     api({ api: 'datos' }).then(function(d){
       var primera = !cfg;
       if (d.tz && d.tz !== TZ) ponerTZ(d.tz);
-      var antes = JSON.stringify(botones());
-      cfg = { centro: d.centro || '', tz: d.tz || TZ, vacunas: d.vacunas || [], botones: d.botones || null, profesionales: d.profesionales || [] };
+      var antes = JSON.stringify(cuadricula());
+      cfg = { centro: d.centro || '', tz: d.tz || TZ, vacunas: d.vacunas || [], cuadricula: d.cuadricula || null, contadores: d.contadores || [], profesionales: d.profesionales || [] };
+      montarContadores();
       pintarCentro();
       hoy = d.hoy || hoy; conectado = true; error = false;
       store.set('wid_cfg', cfg);
-      if (primera || !el.filas.querySelector('.fila')) { montarProfesionales(); pintarFilas(); }
-      else if (JSON.stringify(botones()) !== antes) pintarFilas();
+      if (primera || !el.filas.querySelector('.cel')) { montarProfesionales(); pintarFilas(); }
+      else if (JSON.stringify(cuadricula()) !== antes) pintarFilas();
       msg(prof() ? 'Listo. Pulsa «Abrir contador flotante».' : 'Elige tu nombre para empezar.');
       pintar(); enviar(); cargarBase();
     }).catch(function(e){
       error = true;
-      if (cfg && !el.filas.querySelector('.fila')){ montarProfesionales(); pintarFilas(); }
+      if (cfg && !el.filas.querySelector('.cel')){ montarProfesionales(); montarContadores(); pintarFilas(); }
       if (esClave(e)) msg(MSG_CLAVE, true);
       else msg(cfg ? 'Sin conexión: puedes seguir contando, se enviará después.' : 'No se pudo conectar con la hoja. Reintentando…', !cfg);
       pintar();
@@ -435,7 +517,7 @@
     });
   }
   verEnlace(false);
-  if (cfg && ES_URL.test(URL_APP)){ pintarCentro(); montarProfesionales(); pintarFilas(); pintar(); }
+  if (cfg && ES_URL.test(URL_APP)){ pintarCentro(); montarProfesionales(); montarContadores(); pintarFilas(); pintar(); }
   iniciar();
 })();
 </script>

@@ -91,6 +91,10 @@
   .ley .gris{background:var(--soft);box-shadow:inset 0 0 0 2px var(--bd)}
   .aviso-ped{border:1px solid var(--bd);border-left:4px solid var(--pri);border-radius:10px;padding:10px 12px;background:var(--bg);margin:0 0 10px}
   .vtab input[type=date]{min-width:140px}
+  #tGru tr.suma td{border-top:2px solid var(--tx)}
+  .kcard{border:1px solid var(--bd);border-radius:12px;padding:10px;margin:8px 0}
+  .kcard select{max-width:220px}
+  .vtab .gS{min-width:100px} .vtab select.vP{min-width:120px}
   .vtab .gV{min-width:110px} .vtab .gN{min-width:170px} .vtab .gP,.vtab .gO{width:90px}
   @media (max-width:520px){
     .sem{grid-template-columns:72px 1fr 44px} .kpi .v{font-size:1.4rem}
@@ -166,9 +170,9 @@
         <div class="ley">
           <span><i class="okf"></i>Objetivo alcanzado</span>
           <span><i class="pocas"></i>Al ritmo actual no llega antes del fin de campaña</span>
-          <span><i class="gris"></i>Todavía no ha empezado</span>
+          <span><i class="gris"></i>Todavía no ha empezado o empezó hace menos de 3 días laborables</span>
         </div>
-        <p class="nota">Vacunados = último dato oficial del grupo + dosis del contador desde entonces. Si una vacuna está en varios grupos, el contador muestra un botón por grupo (p. ej. «Vaxigrip · 60–64 años» y «Vaxigrip · Menores de 60») y cada dosis cuenta para el grupo pulsado. Las dosis sin grupo (de antes de este cambio) se reparten según la población diana de los grupos que usan esa vacuna. Es una estimación: mete el dato oficial cuando lo tengas (en %, se calcula con la población del grupo). «Datos hasta el día» es el último día que incluye el informe; las dosis del contador posteriores se suman.</p>
+        <p class="nota">Vacunados = último dato oficial del grupo + dosis del contador desde entonces. Si una vacuna está en varios grupos, el contador muestra un botón por grupo (p. ej. «Vaxigrip · 60–64 años» y «Vaxigrip · Menores de 60») y cada dosis cuenta para el grupo pulsado. Las dosis sin grupo (de antes de este cambio) se reparten según la población diana de los grupos que usan esa vacuna. «Al final» = cobertura prevista el último día de la campaña: con <b>techo esperado</b> (p. ej. la cobertura de la campaña pasada), el ritmo se va frenando al acercarse a él, porque al final quedan los que no acuden o no quieren vacunarse; sin techo, se supone que el ritmo actual se mantiene. Es una estimación: mete el dato oficial cuando lo tengas (en %, se calcula con la población del grupo). «Datos hasta el día» es el último día que incluye el informe; las dosis del contador posteriores se suman.</p>
         <form id="fCob" class="stkf" novalidate>
           <div><label for="oGru">Grupo</label><select id="oGru"></select></div>
           <div><label for="oTipo">Dato en</label><select id="oTipo"><option value="pct">Cobertura (%)</option><option value="num">Vacunados (número)</option></select></div>
@@ -179,10 +183,21 @@
         </form>
         <div class="msg" id="oMsg" role="status"></div>
 
+        <h3>Asistencia a las citas</h3>
+        <p class="sub" id="asisTxt"></p>
+        <div class="tw"><table id="tAsis"></table></div>
+        <form id="fCit" class="stkf" novalidate hidden>
+          <div><label for="cFecha">Día</label><input type="date" id="cFecha"></div>
+          <div id="cFilas" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+          <button class="btn" id="cGuardar">Guardar citas del día</button>
+        </form>
+        <div class="msg" id="cMsg" role="status"></div>
+        <p class="nota">Apunta, mirando la agenda, cuántas personas había citadas y cuántas no vinieron (sin nombres). Asistencia = (citados − faltaron) ÷ citados, de los últimos 28 días. «Citar al día» es cuántas citas hacen falta para que vengan tantas personas como las que citáis ahora: si citáis 7 y viene el 70 %, citad 10 para no perder huecos. Si guardas otra vez el mismo día y agenda, vale el último dato.</p>
+
         <h3>Pedido sugerido</h3>
         <div class="aviso-ped" id="pedTxt"></div>
         <div class="tw"><table id="tPed"></table></div>
-        <p class="nota">Pedido = consumo previsto hasta el reparto siguiente + stock mínimo − stock actual, sin pasar de lo que falta para acabar la campaña. Consumo previsto = ritmo actual de cada grupo hasta su objetivo + los grupos que aún no empezaron. Si ya tienes un pedido en camino, réstalo. No tiene en cuenta los festivos.</p>
+        <p class="nota">Pedido = consumo previsto hasta el reparto siguiente + stock mínimo − stock actual, sin pasar de lo que falta para acabar la campaña. Consumo previsto = ritmo actual de cada grupo hasta su objetivo (o, si tiene techo, un ritmo que se va frenando al acercarse al techo) + los grupos que aún no empezaron. Si ya tienes un pedido en camino, réstalo. No tiene en cuenta los festivos.</p>
       </div>
     </section>
 
@@ -234,7 +249,22 @@
     <section class="card">
       <h2>Día a día</h2>
       <div class="tw"><table id="tDia"></table></div>
-      <p class="nota">«Capacidad real» = profesionales que registraron ese día × huecos por profesional.</p>
+      <p class="nota">«Capacidad real» = suma de los huecos de los profesionales que registraron ese día (cada uno con los suyos; quien vacuna sin cita, como la matrona, suma 0). «Sin cita» = sus pacientes, que no ocupan huecos. «Aprovechado» = pacientes con cita ÷ capacidad real (un paciente con gripe y COVID ocupa un solo hueco). Antes de la versión 1.4 cada dosis contaba como un paciente. ✎ = pacientes reales apuntados a mano.</p>
+      <h3 style="margin-top:14px">Pacientes reales de un día</h3>
+      <p class="sub" style="margin:0 0 6px">Si un día no cuadra (por ejemplo, antes de la versión 1.4, cuando un paciente con gripe y COVID contaba como dos), escribe los pacientes que se vacunaron de verdad según la agenda (con cita y sin cita). Sustituyen al cálculo en el total de ese día; las tablas por perfil y por profesional siguen calculadas. Para quitar la corrección, guarda el día con la casilla vacía.</p>
+      <form id="fReal" class="stkf" novalidate>
+        <div><label for="rFecha">Día</label><input type="date" id="rFecha"></div>
+        <div><label for="rNum">Pacientes reales</label><input type="number" id="rNum" min="0" step="1" inputmode="numeric" style="width:110px"></div>
+        <div class="nota-in"><label for="rNota">Nota (opcional)</label><input type="text" id="rNota" maxlength="150" placeholder="Agenda GRI + Gri2 + sin cita"></div>
+        <button class="btn" id="rGuardar">Guardar</button>
+      </form>
+      <div class="msg" id="rMsg" role="status"></div>
+    </section>
+
+    <section class="card" id="cPerf" hidden>
+      <h2>Por perfil</h2>
+      <div class="tw"><table id="tPerf"></table></div>
+      <p class="nota">Capacidad = huecos de los profesionales de cada perfil los días que vacunaron. «Sin cita» = pacientes de quien vacuna sin huecos (p. ej. la matrona). No muestra nombres.</p>
     </section>
 
     <section class="card" id="cProf">
@@ -252,9 +282,12 @@
           <div><label for="kPla">Plantilla</label><select id="kPla"></select></div>
           <div><button class="btn" id="kCargar" type="button">Cargar plantilla</button></div>
         </div>
-        <div class="tw"><table class="vtab"><thead><tr><th>Grupo</th><th>Población</th><th>Objetivo %</th><th>Desde</th><th>Vacunas</th><th>Activo</th><th></th></tr></thead><tbody id="kGru"></tbody></table></div>
+        <div class="tw"><table class="vtab"><thead><tr><th>Grupo</th><th>Población</th><th>Objetivo %</th><th title="Cobertura máxima realista: p. ej. la de la campaña pasada">Techo %</th><th>Desde</th><th>Vacunas</th><th title="Los grupos con el mismo texto se suman en una línea, p. ej. «60 o más»">Suma en</th><th>Activo</th><th></th></tr></thead><tbody id="kGru"></tbody></table></div>
         <button class="btn" id="kAdd" type="button" style="margin-top:8px">Añadir grupo</button>
-        <p class="nota">Vacunas: los nombres tal como están en la lista de vacunas, separados por comas. Objetivo vacío o 0 = grupo sin objetivo de cobertura. Si pones la misma vacuna en varios grupos, el contador mostrará un botón para cada grupo: así se sabe a qué grupo va cada dosis. Un grupo sin población (p. ej. «Menores de 60») solo cuenta las dosis.</p>
+        <p class="nota">Vacunas: los nombres tal como están en la lista de vacunas, separados por comas. Objetivo vacío o 0 = grupo sin objetivo de cobertura. Si pones la misma vacuna en varios grupos, el contador mostrará un botón para cada grupo: así se sabe a qué grupo va cada dosis. Un grupo sin población (p. ej. «Menores de 60») solo cuenta las dosis. <b>Suma en</b>: los grupos con el mismo texto se suman en una línea; p. ej. pon «60 o más» en «65 o más» y «60–64 años», porque el objetivo oficial (75 %) es del conjunto. Para seguir también la COVID, haz grupos aparte con las vacunas de COVID (p. ej. «65 o más · COVID» con Comirnaty30, Spikevax y mCombriax): no mezcles vacunas de gripe y de COVID en el mismo grupo. <b>Techo %</b> (opcional): la cobertura a la que de verdad se suele llegar, por ejemplo la de la campaña pasada; hace que la previsión frene el ritmo al final y no pida vacunas de más. Vacío = sin techo.</p>
+        <div class="cfg">
+          <div style="flex:1 1 280px"><label for="kAge">Agendas de cita, separadas por comas (para la asistencia)</label><input type="text" id="kAge" style="width:100%" maxlength="200" placeholder="p. ej. GRI, Gri2"></div>
+        </div>
 
         <h2 style="margin-top:16px">Días de reparto</h2>
         <div id="kRep" class="sub"></div>
@@ -311,15 +344,31 @@
         </div>
         <div class="cfg">
           <div><label for="cEnf">Enfermeras/os que vacunan</label><input type="number" min="0" step="1" id="cEnf"></div>
-          <div><label for="cHue">Huecos por enfermera/o y día</label><input type="number" min="0" step="1" id="cHue"></div>
+          <div><label for="cHue">Huecos por enfermera/o y día (general)</label><input type="number" min="0" step="1" id="cHue"></div>
           <div><label for="cDia">Días de vacunación por semana</label><input type="number" min="1" max="7" step="1" id="cDia"></div>
         </div>
         <p class="sub" id="capTxt"></p>
         <h2 style="margin-top:14px">Vacunas</h2>
-        <div class="tw"><table class="vtab"><thead><tr><th>Vacuna</th><th>Dosis necesarias por semana</th><th>Stock mínimo</th><th>Activa</th><th></th></tr></thead><tbody id="cVac"></tbody></table></div>
+        <div class="tw"><table class="vtab"><thead><tr><th>Vacuna</th><th>Protege frente a</th><th>Dosis necesarias por semana</th><th>Stock mínimo</th><th>Activa</th><th></th></tr></thead><tbody id="cVac"></tbody></table></div>
         <button class="btn" id="addVac" type="button" style="margin-top:8px">Añadir vacuna</button>
-        <h2 style="margin-top:16px">Profesionales (uno por línea)</h2>
-        <textarea id="cPro" placeholder="Nombre Apellido"></textarea>
+        <h2 style="margin-top:16px">Pautas del contador</h2>
+        <p class="sub" style="margin:0 0 6px">Lo que se pone a un paciente en el mismo acto. Cada casilla marcada sale en el contador; un toque = un paciente. Las filas son las vacunas con gripe (mCombriax ya lleva las dos) y las columnas, la vacuna de COVID que se pone a la vez.</p>
+        <div class="tw"><table class="vtab" id="cPau"></table></div>
+        <h2 style="margin-top:16px">Contadores (perfiles)</h2>
+        <p class="sub" style="margin:0 0 6px">Si los defines, cada ordenador o móvil elige su contador una vez (p. ej. <i>Adultos + COMBO-GAL</i>, <i>Adultos</i>, <i>Pediatría</i>) y solo ve sus filas; las pautas de arriba dejan de usarse. Cada fila es una vacuna de gripe (o <i>solo COVID</i>) con el texto que se ve debajo (p. ej. «60–64 años»), el <b>grupo de la campaña</b> donde cuentan sus dosis y las casillas: <i>sola</i> y con qué vacuna de COVID. Sin contadores, la cuadrícula se monta sola con las pautas.</p>
+        <div id="cCon"></div>
+        <div class="cfg">
+          <button class="btn" id="addCon" type="button">Añadir contador</button>
+          <button class="btn" id="ejCon" type="button">Crear los 3 de ejemplo (Adultos + COMBO-GAL, Adultos, Pediatría)</button>
+        </div>
+        <h2 style="margin-top:16px">Perfiles</h2>
+        <p class="sub" style="margin:0 0 6px">Tipos de agenda y sus <b>huecos por día</b>, p. ej. <i>Enfermería de familia 14 · Enfermería pediátrica 8 · Enfermería obstétrica 0</i>. <b>0 = vacuna sin cita</b>, de forma oportunista (la matrona): sus pacientes se cuentan aparte y no suman huecos. Vacío = el número general de arriba.</p>
+        <div class="tw"><table class="vtab"><thead><tr><th>Perfil</th><th>Huecos por día</th><th></th></tr></thead><tbody id="cPer"></tbody></table></div>
+        <button class="btn" id="addPer" type="button" style="margin-top:8px">Añadir perfil</button>
+        <h2 style="margin-top:16px">Profesionales</h2>
+        <p class="sub" style="margin:0 0 6px">Elige el perfil de cada uno. <b>Huecos propios</b> solo si esa persona tiene otros distintos de los de su perfil (p. ej. reducción de jornada); vacío = los del perfil.</p>
+        <div class="tw"><table class="vtab"><thead><tr><th>Nombre</th><th>Perfil</th><th>Huecos propios</th><th></th></tr></thead><tbody id="cPro"></tbody></table></div>
+        <button class="btn" id="addPro" type="button" style="margin-top:8px">Añadir profesional</button>
         <div class="cfg">
           <label style="display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--tx)"><input type="checkbox" id="cPorProf" style="margin:0">Mostrar datos por profesional en el panel</label>
           <p class="sub" style="flex-basis:100%;margin:0">Son datos personales del equipo: actívalo solo si la plantilla está informada y hay un motivo (por ejemplo, organizar turnos), nunca para evaluar el rendimiento de nadie.</p>
@@ -488,12 +537,13 @@
     var c = datos.config, d = datos;
     var dias = laborables(d.desde, d.hasta);
     var semanasEq = dias / 5;
-    var capDia = c.enfermeras * c.huecos;
+    var capDia = c.capDia != null ? c.capDia : c.enfermeras * c.huecos;
     var capSem = capDia * c.dias;
     var capPer = capSem * semanasEq;
     var necSem = c.vacunas.filter(function(v){ return v.activa; }).reduce(function(s, v){ return s + v.necesarias; }, 0);
     var necPer = necSem * semanasEq;
     var puestas = Object.keys(d.porVacuna).reduce(function(s, k){ return s + d.porVacuna[k]; }, 0);
+    var pacientes = d.pacientes == null ? puestas : d.pacientes;
     var diasConDatos = d.porDia.length;
 
     $('rangoTxt').textContent = (d.desde === d.hasta ? diaCorto(d.desde) : diaCorto(d.desde) + ' – ' + diaCorto(d.hasta)) +
@@ -503,13 +553,15 @@
     $('avisoPin').hidden = !c.pinCorto;
     ponerCentro(c.centro);
 
-    var pOcu = pct(puestas, capPer), pNec = pct(puestas, necPer);
+    var sinCita = d.sinCita || 0, enHueco = pacientes - sinCita;
+    var pOcu = pct(enHueco, capPer), pNec = pct(puestas, necPer);
     $('kpis').innerHTML = [
-      kpi('Capacidad diaria', nf(capDia) + ' huecos', nf(c.enfermeras) + ' enf. × ' + nf(c.huecos) + ' huecos'),
+      kpi('Capacidad diaria', nf(capDia) + ' huecos', c.huecosPropios ? 'suma de los huecos de cada profesional' : nf(c.enfermeras) + ' enf. × ' + nf(c.huecos) + ' huecos'),
       kpi('Capacidad semanal', nf(capSem) + ' huecos', '× ' + nf(c.dias) + ' días de vacunación'),
       kpi('Dosis necesarias / semana', nf(necSem), necSem ? (capSem ? pctTxt(pct(necSem, capSem)) + ' de la capacidad' : '') : 'Pon las cifras en Configuración'),
-      kpi('Dosis puestas', nf(puestas), diasConDatos ? 'media ' + nf(puestas / diasConDatos, 1) + ' por día con registros' : 'Sin registros en el periodo'),
-      kpi('Huecos aprovechados', pctTxt(pOcu), 'de ' + nf(capPer) + ' huecos del periodo', clase(pOcu)),
+      kpi('Pacientes vacunados', nf(pacientes), diasConDatos ? 'media ' + nf(pacientes / diasConDatos, 1) + ' por día con registros' : 'Sin registros en el periodo'),
+      kpi('Dosis puestas', nf(puestas), pacientes > 0 ? nf(puestas / pacientes, 2) + ' dosis por paciente' : ''),
+      kpi('Huecos aprovechados', pctTxt(pOcu), nf(enHueco) + ' pacientes con cita de ' + nf(capPer) + ' huecos' + (sinCita ? ' · +' + nf(sinCita) + ' sin cita' : ''), clase(pOcu)),
       kpi('Necesidades cubiertas', pctTxt(pNec), 'de ' + nf(necPer) + ' dosis necesarias', clase(pNec))
     ].join('');
 
@@ -531,6 +583,7 @@
 
     pintarSemanas(capSem, necSem);
     pintarDias();
+    pintarPerfiles();
     pintarProf();
     pintarConfig();
   }
@@ -558,12 +611,27 @@
   function pintarDias(){
     var c = datos.config, nombres = nombresVacunas();
     if (!datos.porDia.length){ $('tDia').innerHTML = '<tbody><tr><td class="vacio">Sin registros en el periodo.</td></tr></tbody>'; return; }
-    $('tDia').innerHTML = '<thead><tr><th>Día</th><th>Profesionales</th><th>Capacidad real</th><th>Puestas</th><th>Aprovechado</th>' +
+    $('tDia').innerHTML = '<thead><tr><th>Día</th><th>Profesionales</th><th>Capacidad real</th><th>Pacientes</th><th title="Pacientes de quien vacuna sin huecos (p. ej. matrona)">Sin cita</th><th>Dosis</th><th>Aprovechado</th>' +
       nombres.map(function(n){ return '<th>' + esc(n) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       datos.porDia.slice().reverse().map(function(x){
-        var cap = x.profesionales * c.huecos, p = pct(x.total, cap);
-        return '<tr><td>' + esc(diaCorto(x.fecha)) + '</td><td>' + x.profesionales + '</td><td>' + nf(cap) + '</td><td><b>' + nf(x.total) + '</b></td>' +
+        var pac = x.pacientes == null ? x.total : x.pacientes, sin = x.sinCita || 0;
+        var cap = x.capacidad != null ? x.capacidad : x.profesionales * c.huecos, p = pct(pac - sin, cap);
+        var pacTxt = '<b>' + nf(pac) + '</b>' + (x.real ? ' <span class="sub" title="Pacientes reales apuntados a mano' + (x.real.nota ? ': ' + esc(x.real.nota) : '') + '. El contador calculaba ' + nf(x.real.calculados || 0) + '.">✎</span>' : '');
+        return '<tr><td>' + esc(diaCorto(x.fecha)) + '</td><td>' + x.profesionales + '</td><td>' + nf(cap) + '</td><td>' + pacTxt + '</td><td>' + (sin ? nf(sin) : '—') + '</td><td>' + nf(x.total) + '</td>' +
           '<td class="' + clase(p) + '">' + pctTxt(p) + '</td>' + nombres.map(function(n){ return '<td>' + nf(x.v[n] || 0) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+  }
+
+  function pintarPerfiles(){
+    var l = datos.porPerfil || [];
+    var hay = l.some(function(x){ return x.perfil; });
+    $('cPerf').hidden = !hay;
+    if (!hay) return;
+    $('tPerf').innerHTML = '<thead><tr><th>Perfil</th><th>Días</th><th>Pacientes</th><th>Dosis</th><th>Capacidad</th><th>Huecos aprovechados</th><th>Sin cita</th></tr></thead><tbody>' +
+      l.map(function(x){
+        var p = x.capacidad ? pct(x.pacientes - x.sinCita, x.capacidad) : null;
+        return '<tr><td>' + (x.perfil ? esc(x.perfil) : '<span class="sub">sin perfil</span>') + '</td><td>' + nf(x.dias) + '</td><td><b>' + nf(x.pacientes) + '</b></td><td>' + nf(x.dosis) + '</td>' +
+          '<td>' + (x.capacidad ? nf(x.capacidad) : '—') + '</td><td class="' + clase(p) + '">' + (x.capacidad ? pctTxt(p) : '<span class="sub">sin cita</span>') + '</td><td>' + (x.sinCita ? nf(x.sinCita) : '—') + '</td></tr>';
       }).join('') + '</tbody>';
   }
 
@@ -573,14 +641,33 @@
     if (!lista) return;
     if (!lista.length){ $('tProf').innerHTML = '<tbody><tr><td class="vacio">Sin registros en el periodo.</td></tr></tbody>'; return; }
     var huecos = datos.config.huecos;
-    $('tProf').innerHTML = '<thead><tr><th>Profesional</th><th>Días</th><th>Total</th><th>Media / día</th><th>Huecos aprovechados</th>' +
+    $('tProf').innerHTML = '<thead><tr><th>Profesional</th><th>Días</th><th>Pacientes</th><th>Dosis</th><th>Pacientes / día</th><th>Huecos aprovechados</th>' +
       nombres.map(function(n){ return '<th>' + esc(n) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       lista.map(function(x){
-        var p = pct(x.total, x.dias * huecos);
-        return '<tr><td>' + esc(x.nombre) + '</td><td>' + x.dias + '</td><td><b>' + nf(x.total) + '</b></td><td>' + nf(x.total / (x.dias || 1), 1) + '</td>' +
-          '<td>' + pctTxt(p) + '</td>' + nombres.map(function(n){ return '<td>' + nf(x.v[n] || 0) + '</td>'; }).join('') + '</tr>';
+        var pac = x.pacientes == null ? x.total : x.pacientes, h = x.huecos != null ? x.huecos : huecos, p = h ? pct(pac, x.dias * h) : null;
+        return '<tr><td>' + esc(x.nombre) + '</td><td>' + x.dias + '</td><td><b>' + nf(pac) + '</b></td><td>' + nf(x.total) + '</td><td>' + nf(pac / (x.dias || 1), 1) + '</td>' +
+          '<td>' + (h ? pctTxt(p) + ' <span class="sub">de ' + nf(h) + '/día</span>' : '<span class="sub">sin cita</span>') + '</td>' + nombres.map(function(n){ return '<td>' + nf(x.v[n] || 0) + '</td>'; }).join('') + '</tr>';
       }).join('') + '</tbody>';
   }
+
+  // ---------- Pacientes reales de un día ----------
+  $('rFecha').max = hoyStr(); $('rFecha').value = hoyStr();
+  $('fReal').addEventListener('submit', function(e){
+    e.preventDefault();
+    var m = $('rMsg'), b = $('rGuardar'), f = $('rFecha').value, t = $('rNum').value.trim(), n = Number(t);
+    var fallo = !f ? 'Elige el día.' : f > hoyStr() ? 'La fecha no puede ser futura.' : t !== '' && !(n >= 0 && n === Math.floor(n)) ? 'Los pacientes tienen que ser un número entero.' : '';
+    if (fallo){ m.className = 'msg err'; m.textContent = fallo; return; }
+    if (t === '' && !confirm('Con la casilla vacía se quita la corrección de ese día y vuelve el cálculo del contador. ¿Seguir?')) return;
+    b.disabled = true; m.className = 'msg'; m.textContent = 'Guardando…';
+    run('registrarPacientesDia', PIN, { fecha: f, pacientes: t, nota: $('rNota').value.trim() }).then(function(r){
+      m.className = 'msg ok';
+      m.textContent = r.pacientes == null ? 'Quitada la corrección del ' + diaCorto(f) + '.' : 'Guardado: ' + diaCorto(f) + ', ' + nf(r.pacientes) + ' pacientes.' +
+        (f < datos.desde || f > datos.hasta ? ' Ese día está fuera del periodo que ves.' : '');
+      $('rNum').value = ''; $('rNota').value = '';
+      return cargar();
+    }).catch(function(e){ siPin(e, function(x){ m.className = 'msg err'; m.textContent = 'No se guardó: ' + x; }); })
+      .then(function(){ b.disabled = false; });
+  });
 
   // ---------- Stock ----------
   var AYUDA = {
@@ -696,13 +783,19 @@
       (c.fin && c.labRestantes ? ' · quedan ' + c.labRestantes + ' días laborables' : c.fin && c.fin < p.hoy ? ' · campaña terminada' : '') + '.';
 
     var faltaPob = p.grupos.some(function(g){ return !g.poblacion; });
-    $('tGru').innerHTML = '<thead><tr><th>Grupo</th><th>Empieza</th><th>Población</th><th>Vacunados</th><th>Cobertura</th><th>Objetivo</th><th>Faltan</th><th>Ritmo / día</th><th>Necesario / día</th><th class="l">Llega al objetivo</th></tr></thead><tbody>' +
+    $('tGru').innerHTML = '<thead><tr><th>Grupo</th><th>Empieza</th><th>Población</th><th>Vacunados</th><th>Cobertura</th><th>Objetivo</th><th>Faltan</th><th>Ritmo / día</th><th>Necesario / día</th><th title="Cobertura prevista el último día de la campaña">Al final</th><th class="l">Llega al objetivo</th></tr></thead><tbody>' +
       p.grupos.map(function(g){
-        var cl = g.estado === 'ok' ? 'okf' : g.estado === 'riesgo' ? 'pocas' : g.estado === 'pendiente' ? 'gris' : '';
+        var cl = g.estado === 'ok' ? 'okf' : g.estado === 'riesgo' ? 'pocas' : g.estado === 'pendiente' || g.estado === 'arrancando' ? 'gris' : '';
         var llega = g.estado === 'pendiente' ? 'empieza el ' + fecha(g.desde) :
+          g.estado === 'arrancando' ? 'empezó el ' + fecha(g.desde) + ' <span class="sub">(aún sin ritmo: se usa el plan)</span>' :
           g.llega === 'ok' ? '✓ alcanzado' :
           g.llega ? fecha(g.llega) + (c.fin && g.llega > c.fin ? ' <span class="warn">(después del fin)</span>' : '') :
+          g.faltan && g.techoBajo ? '<span class="warn">no: el techo (' + nf(g.techo) + ' %) está por debajo</span>' :
+          g.faltan && g.techo ? '<span class="warn">no: el ritmo se frena antes</span>' :
           g.faltan ? '<span class="warn">al ritmo actual, no</span>' : '—';
+        var alFin = g.coberturaFinal == null ? (g.alFinal == null ? '—' : nf(g.alFinal)) :
+          '<span class="' + (g.objetivo && g.coberturaFinal < g.objetivo ? 'warn' : '') + '">' + nf(g.coberturaFinal, 1) + ' %</span>' +
+          (g.techo ? ' <span class="sub" title="Techo esperado">≤ ' + nf(g.techo) + ' %</span>' : '');
         var vac = nf(g.vacunados) + (g.oficial ? ' <span class="sub" title="Dato oficial del ' + esc(fecha(g.oficial.fecha)) + ' (' + nf(g.oficial.n) + ') + contador desde entonces">●</span>' : ' <span class="sub" title="Estimado con el contador">est.</span>');
         return '<tr class="' + cl + '"><td>' + esc(g.nombre) + ' <span class="sub">' + esc(g.vacunas.join(', ')) + '</span></td>' +
           '<td>' + fecha(g.desde) + '</td>' +
@@ -712,10 +805,23 @@
           '<td>' + (g.objetivo ? nf(g.objetivo) + ' %' : '—') + '</td>' +
           '<td>' + (g.faltan == null ? '—' : nf(g.faltan)) + '</td>' +
           '<td>' + nf(g.ritmoDia, 1) + '</td>' +
-          '<td class="' + (g.necesarioDia != null && g.necesarioDia > g.ritmoDia && g.estado !== 'pendiente' ? 'warn' : '') + '">' + (g.necesarioDia == null ? '—' : nf(g.necesarioDia, 1)) + '</td>' +
+          '<td class="' + (g.necesarioDia != null && g.necesarioDia > g.ritmoDia && g.estado !== 'pendiente' && g.estado !== 'arrancando' ? 'warn' : '') + '">' + (g.necesarioDia == null ? '—' : nf(g.necesarioDia, 1)) + '</td>' +
+          '<td>' + alFin + '</td>' +
           '<td class="l">' + llega + '</td></tr>';
+      }).join('') + (p.agregados || []).map(function(a){
+        var obj = a.objetivo ? nf(a.objetivo) + ' %' : '—';
+        return '<tr class="suma"><td><b>' + esc(a.nombre) + '</b> <span class="sub">' + esc(a.grupos.join(' + ')) + '</span></td><td></td>' +
+          '<td>' + (a.faltaPob ? '<span class="err">falta</span>' : nf(a.poblacion)) + '</td><td>' + nf(a.vacunados) + '</td>' +
+          '<td><b>' + (a.cobertura == null ? '—' : nf(a.cobertura, 1) + ' %') + '</b></td><td>' + obj + '</td><td>' + (a.faltan == null ? '—' : nf(a.faltan)) + '</td>' +
+          '<td></td><td></td><td>' + (a.coberturaFinal == null ? '—' : '<span class="' + (a.objetivo && a.coberturaFinal < a.objetivo ? 'warn' : '') + '">' + nf(a.coberturaFinal, 1) + ' %</span>') + '</td>' +
+          '<td class="l">' + (a.objetivo && a.cobertura != null ? (a.cobertura >= a.objetivo ? '✓ alcanzado' : a.coberturaFinal != null && a.coberturaFinal >= a.objetivo ? 'se prevé alcanzar' : '<span class="warn">no se prevé alcanzar</span>') : '—') + '</td></tr>';
       }).join('') + '</tbody>' +
-      (faltaPob ? '<tfoot><tr><td colspan="10" class="l err" style="font-weight:600">Falta la población de algún grupo: ponla en «Campaña y previsión» para calcular la cobertura.</td></tr></tfoot>' : '');
+      (p.grupos.some(function(g){ return g.enfermedad === 'mixto'; }) ? '<tfoot><tr><td colspan="11" class="l err" style="font-weight:600">' +
+        esc(p.grupos.filter(function(g){ return g.enfermedad === 'mixto'; }).map(function(g){ return g.nombre; }).join(', ')) +
+        ': mezcla vacunas de gripe y de COVID, así que un paciente con las dos cuenta dos veces. Sepáralo en un grupo de gripe y otro de COVID.</td></tr></tfoot>' : '') +
+      (faltaPob ? '<tfoot><tr><td colspan="11" class="l err" style="font-weight:600">Falta la población de algún grupo: ponla en «Campaña y previsión» para calcular la cobertura.</td></tr></tfoot>' : '');
+
+    pintarAsistencia();
 
     var sel = $('oGru'), antes = sel.value;
     sel.innerHTML = p.grupos.map(function(g){ return '<option>' + esc(g.nombre) + '</option>'; }).join('');
@@ -752,6 +858,65 @@
           '<td class="l ' + (sobra ? 'warn' : '') + '">' + fin + (sobra ? ' · más del 5 %: pide menos' : '') + '</td></tr>';
       }).join('') + '</tbody>';
   }
+
+  // ---------- Asistencia a las citas ----------
+  var agendasPintadas = '';
+  function pintarAsistencia(){
+    var a = prev.asistencia || { agendas: [], recientes: [] }, ags = prev.agendasConfig || [];
+    $('fCit').hidden = !ags.length;
+    if (!ags.length){
+      $('asisTxt').innerHTML = 'Para medir cuánta gente falta a la cita, escribe vuestras agendas (por ejemplo, <b>GRI, Gri2</b>) en «Campaña y previsión» y guarda.';
+      $('tAsis').innerHTML = '';
+      return;
+    }
+    if (agendasPintadas !== ags.join('|')){
+      $('cFilas').innerHTML = ags.map(function(n, i){
+        return '<div><label>' + esc(n) + '</label><div style="display:flex;gap:6px">' +
+          '<input type="number" class="cCi" data-a="' + esc(n) + '" min="0" step="1" inputmode="numeric" placeholder="citados" style="width:92px" aria-label="Citados en ' + esc(n) + '">' +
+          '<input type="number" class="cFa" data-a="' + esc(n) + '" min="0" step="1" inputmode="numeric" placeholder="faltaron" style="width:92px" aria-label="Faltaron en ' + esc(n) + '"></div></div>';
+      }).join('');
+      agendasPintadas = ags.join('|');
+    }
+    var t = a.total;
+    $('asisTxt').innerHTML = t ? 'Últimos ' + a.dias + ' días: <b>' + nf(t.asistencia, 1) + ' %</b> de asistencia; <b>' + nf(t.faltaron) + '</b> huecos perdidos de ' + nf(t.citados) + ' citas.' :
+      'Todavía no hay datos de citas. Apunta abajo los citados y las faltas de cada día.';
+    var con = a.agendas.filter(function(x){ return x.citados; });
+    $('tAsis').innerHTML = !con.length ? '' :
+      '<thead><tr><th>Agenda</th><th>Días con datos</th><th>Citados / día</th><th>Faltaron</th><th>Asistencia</th><th class="l">Citar al día</th></tr></thead><tbody>' +
+      con.map(function(x){
+        var mas = x.citarPara != null && x.citadosDia != null ? x.citarPara - Math.round(x.citadosDia) : 0;
+        return '<tr><td>' + esc(x.agenda) + '</td><td>' + nf(x.dias) + '</td><td>' + nf(x.citadosDia, 1) + '</td><td>' + nf(x.faltaron) + '</td>' +
+          '<td class="' + (x.asistencia < 85 ? 'warn' : '') + '"><b>' + nf(x.asistencia, 1) + ' %</b></td>' +
+          '<td class="l">' + (x.citarPara == null ? '—' : '<b>' + nf(x.citarPara) + '</b>' + (mas > 0 ? ' <span class="sub">(' + nf(mas) + ' más de los que citáis)</span>' : '')) + '</td></tr>';
+      }).join('') + '</tbody>' +
+      (a.recientes.length ? '<tfoot><tr><td colspan="6" class="l sub">Últimos días apuntados: ' + a.recientes.slice(0, 10).map(function(r){
+        return esc(diaCorto(r.fecha)) + ' ' + esc(r.agenda) + ' ' + nf(r.citados - r.faltaron) + '/' + nf(r.citados);
+      }).join(' · ') + '</td></tr></tfoot>' : '');
+  }
+  $('cFecha').max = hoyStr(); $('cFecha').value = hoyStr();
+  $('fCit').addEventListener('submit', function(e){
+    e.preventDefault();
+    var m = $('cMsg'), b = $('cGuardar'), filas = [], fallo = '';
+    document.querySelectorAll('#cFilas .cCi').forEach(function(inp){
+      var a = inp.getAttribute('data-a'), fa = document.querySelector('#cFilas .cFa[data-a="' + CSS.escape(a) + '"]');
+      var ci = inp.value.trim(), f = fa.value.trim();
+      if (ci === '' && f === '') return;
+      if (ci === '') { fallo = 'Escribe los citados de ' + a + '.'; return; }
+      if (Number(f || 0) > Number(ci)) { fallo = 'En ' + a + ' faltaron más de los citados.'; return; }
+      filas.push({ agenda: a, citados: Number(ci), faltaron: f === '' ? 0 : Number(f) });
+    });
+    if (!fallo && !filas.length) fallo = 'Escribe los citados de al menos una agenda.';
+    if (!fallo && $('cFecha').value > hoyStr()) fallo = 'La fecha no puede ser futura.';
+    if (fallo){ m.className = 'msg err'; m.textContent = fallo; return; }
+    b.disabled = true; m.className = 'msg'; m.textContent = 'Guardando…';
+    run('registrarCitas', PIN, { fecha: $('cFecha').value, filas: filas }).then(function(p){
+      prev = p; pintarPrevision();
+      document.querySelectorAll('#cFilas input').forEach(function(i){ i.value = ''; });
+      m.className = 'msg ok';
+      m.textContent = 'Guardado: ' + filas.map(function(x){ return x.agenda + ' ' + (x.citados - x.faltaron) + ' de ' + x.citados; }).join(', ') + ' (' + fecha($('cFecha').value) + ').';
+    }).catch(function(e){ siPin(e, function(x){ m.className = 'msg err'; m.textContent = 'No se guardó: ' + x; }); })
+      .then(function(){ b.disabled = false; });
+  });
 
   function tipoCob(){
     var pct = $('oTipo').value === 'pct';
@@ -790,13 +955,15 @@
   function filaGru(g){
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><input type="text" class="gN" maxlength="60"></td><td><input type="number" class="gP" min="0" step="1" inputmode="numeric"></td>' +
-      '<td><input type="number" class="gO" min="0" max="100" step="1" inputmode="numeric"></td><td><input type="date" class="gD"></td><td><input type="text" class="gV" list="kVacs"></td>' +
+      '<td><input type="number" class="gO" min="0" max="100" step="1" inputmode="numeric"></td><td><input type="number" class="gT" min="0" max="100" step="1" inputmode="numeric"></td><td><input type="date" class="gD"></td><td><input type="text" class="gV" list="kVacs"></td><td><input type="text" class="gS" maxlength="40" style="width:90px" placeholder="p. ej. 60 o más"></td>' +
       '<td><input type="checkbox" class="gA"></td><td><button class="btn gX" type="button" aria-label="Quitar grupo">✕</button></td>';
     tr.querySelector('.gN').value = g.nombre || '';
     tr.querySelector('.gV').value = (g.vacunas || []).join(', ');
     tr.querySelector('.gD').value = g.desde || '';
     tr.querySelector('.gP').value = g.poblacion || '';
     tr.querySelector('.gO').value = g.objetivo || '';
+    tr.querySelector('.gT').value = g.techo || '';
+    tr.querySelector('.gS').value = g.suma || '';
     tr.querySelector('.gA').checked = g.activo !== false;
     tr.querySelector('.gX').addEventListener('click', function(){ tr.remove(); });
     return tr;
@@ -807,6 +974,7 @@
     if (camPintada && $('dCam').open) return; // no pisar lo que se está editando
     $('kIni').value = p.campana.inicio || ''; $('kFin').value = p.campana.fin || '';
     $('kCor').value = p.correo || '';
+    $('kAge').value = (p.agendasConfig || []).join(', ');
     $('kPla').innerHTML = p.plantillas.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.nombre) + '</option>'; }).join('');
     var dl = document.getElementById('kVacs');
     if (!dl){ dl = document.createElement('datalist'); dl.id = 'kVacs'; document.body.appendChild(dl); }
@@ -870,8 +1038,10 @@
       inicio: $('kIni').value, fin: $('kFin').value, correo: $('kCor').value.trim(),
       grupos: Array.prototype.map.call(document.querySelectorAll('#kGru tr'), function(tr){
         return { nombre: tr.querySelector('.gN').value.trim(), vacunas: tr.querySelector('.gV').value.trim(), desde: tr.querySelector('.gD').value,
-                 poblacion: Number(tr.querySelector('.gP').value) || 0, objetivo: Number(tr.querySelector('.gO').value) || 0, activo: tr.querySelector('.gA').checked };
-      }).filter(function(g){ return g.nombre; })
+                 poblacion: Number(tr.querySelector('.gP').value) || 0, objetivo: Number(tr.querySelector('.gO').value) || 0,
+                 techo: Number(tr.querySelector('.gT').value) || 0, suma: tr.querySelector('.gS').value.trim(), activo: tr.querySelector('.gA').checked };
+      }).filter(function(g){ return g.nombre; }),
+      agendas: $('kAge').value
     };
   }
   function msgK(id, ok, t){ $(id).className = 'msg ' + (ok ? 'ok' : 'err'); $(id).textContent = t; }
@@ -917,14 +1087,18 @@
   var cfgPintada = false;
   function filaVac(v){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="text" class="vN" maxlength="40"></td><td><input type="number" class="vS" min="0" step="1"></td>' +
+    tr.innerHTML = '<td><input type="text" class="vN" maxlength="40"></td><td><select class="vP"><option>Gripe</option><option>COVID</option><option>Gripe y COVID</option></select></td><td><input type="number" class="vS" min="0" step="1"></td>' +
       '<td><input type="number" class="vM" min="0" step="1"></td>' +
       '<td><input type="checkbox" class="vA"></td><td><button class="btn vX" type="button" aria-label="Quitar">✕</button></td>';
     tr.querySelector('.vN').value = v.nombre || '';
     tr.querySelector('.vS').value = v.necesarias || 0;
     tr.querySelector('.vM').value = v.minimo || 0;
     tr.querySelector('.vA').checked = v.activa !== false;
-    tr.querySelector('.vX').addEventListener('click', function(){ tr.remove(); capTxt(); });
+    tr.querySelector('.vP').value = v.protegeTxt || adivinar(v.nombre || '');
+    tr.querySelector('.vX').addEventListener('click', function(){ tr.remove(); capTxt(); pintarPautas(); });
+    tr.querySelector('.vN').addEventListener('change', function(){ if (!v.protegeTxt) tr.querySelector('.vP').value = adivinar(this.value); pintarPautas(); });
+    tr.querySelector('.vP').addEventListener('change', pintarPautas);
+    tr.querySelector('.vA').addEventListener('change', pintarPautas);
     tr.querySelector('.vS').addEventListener('input', capTxt);
     tr.querySelector('.vA').addEventListener('change', capTxt);
     return tr;
@@ -936,33 +1110,223 @@
     $('cEnf').value = c.enfermeras; $('cHue').value = c.huecos; $('cDia').value = c.dias;
     $('cPorProf').checked = c.porProfesional;
     $('cClave').value = c.clave || '';
-    $('cPro').value = c.profesionales.join('\n');
+    var tq = $('cPer'); tq.innerHTML = '';
+    (c.perfiles || []).forEach(function(p){ tq.appendChild(filaPer(p)); });
+    var tp = $('cPro'); tp.innerHTML = '';
+    c.profesionales.forEach(function(n){ tp.appendChild(filaPro(n, (c.perfilProf || {})[n] || '', (c.huecosProf || {})[n])); });
     var tb = $('cVac'); tb.innerHTML = '';
     c.vacunas.forEach(function(v){ tb.appendChild(filaVac(v)); });
-    cfgPintada = true; capTxt();
+    $('cPau').innerHTML = '';
+    pautasMarcadas = c.pautas ? (c.pautasLista || []).map(function(p){ return p.gripe + '|' + p.covid; }) : null;
+    gruposCfg = c.grupos || [];
+    cfgPintada = true; capTxt(); pintarPautas();
+    pintarContadores(c.contadores || []);
   }
   function leerForm(){
     return {
       centro: $('cCen').value.trim(),
       enfermeras: Number($('cEnf').value) || 0, huecos: Number($('cHue').value) || 0, dias: Number($('cDia').value) || 5,
       porProfesional: $('cPorProf').checked, pin: $('cPin').value.trim(), clave: $('cClave').value.trim(),
-      profesionales: $('cPro').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean),
+      perfiles: perfilesForm(),
+      profesionales: Array.prototype.map.call(document.querySelectorAll('#cPro tr'), function(tr){
+        var h = tr.querySelector('.pH').value.trim();
+        return { nombre: tr.querySelector('.pN').value.trim(), perfil: tr.querySelector('.pP').value, huecos: h === '' ? '' : Number(h) };
+      }).filter(function(p){ return p.nombre; }),
       vacunas: Array.prototype.map.call(document.querySelectorAll('#cVac tr'), function(tr){
-        return { nombre: tr.querySelector('.vN').value.trim(), necesarias: Number(tr.querySelector('.vS').value) || 0,
+        return { nombre: tr.querySelector('.vN').value.trim(), necesarias: Number(tr.querySelector('.vS').value) || 0, protege: tr.querySelector('.vP').value,
                  minimo: Number(tr.querySelector('.vM').value) || 0, activa: tr.querySelector('.vA').checked };
-      }).filter(function(v){ return v.nombre; })
+      }).filter(function(v){ return v.nombre; }),
+      pautas: leerPautasForm(),
+      contadores: leerContadoresForm()
     };
   }
+  // ---------- Contadores (perfiles) ----------
+  var gruposCfg = [];
+  function opt(v, t, sel){ return '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(t) + '</option>'; }
+  function leerContadoresForm(){
+    return Array.prototype.map.call(document.querySelectorAll('#cCon .kcard'), function(card){
+      return {
+        nombre: card.querySelector('.kN').value.trim(),
+        filas: Array.prototype.map.call(card.querySelectorAll('tbody tr'), function(tr){
+          var sola = tr.querySelector('.fS');
+          return { gripe: tr.querySelector('.fG').value, texto: tr.querySelector('.fT').value.trim(), grupo: tr.querySelector('.fR').value,
+                   sola: sola ? sola.checked : false,
+                   covid: Array.prototype.filter.call(tr.querySelectorAll('.fC'), function(x){ return x.checked; }).map(function(x){ return x.getAttribute('data-v'); }) };
+        })
+      };
+    }).filter(function(k){ return k.nombre; });
+  }
+  // Grupos de la campaña que usan esa vacuna (para la columna «Grupo»).
+  function gruposDe(v){ return gruposCfg.filter(function(g){ return g.vacunas.some(function(x){ return x.toLowerCase() === String(v).toLowerCase(); }); }); }
+  function pintarContadores(lista){
+    var vs = vacunasForm(), gri = vs.filter(function(v){ return v.p !== 'COVID'; }), cov = vs.filter(function(v){ return v.p === 'COVID'; });
+    var ambas = {}; vs.forEach(function(v){ ambas[v.n] = v.p === 'Gripe y COVID'; });
+    $('cCon').innerHTML = lista.map(function(k, ki){
+      return '<div class="kcard"><div class="cfg" style="align-items:end"><div style="flex:1 1 240px"><label>Nombre del contador</label><input type="text" class="kN" maxlength="40" style="width:100%" placeholder="p. ej. Pediatría" value="' + esc(k.nombre || '') + '"></div>' +
+        '<button class="btn kX" type="button">Quitar contador</button></div>' +
+        '<div class="tw"><table class="vtab"><thead><tr><th>Vacuna</th><th>Texto</th><th>Grupo de la campaña</th><th>sola</th>' +
+        cov.map(function(c){ return '<th>+ ' + esc(c.n) + '</th>'; }).join('') + '<th></th></tr></thead><tbody>' +
+        (k.filas || []).map(function(fl){ return filaK(fl, gri, cov, ambas); }).join('') + '</tbody></table></div>' +
+        '<button class="btn kF" type="button" style="margin-top:6px">Añadir fila</button></div>';
+    }).join('');
+  }
+  function filaK(fl, gri, cov, ambas){
+    var g = fl.gripe || '', esAmbas = !!ambas[g];
+    var grs = g ? gruposDe(g) : gruposCfg.filter(function(x){ return cov.some(function(c){ return x.vacunas.indexOf(c.n) >= 0; }); });
+    var aviso = !fl.grupo && grs.length > 1 ? ' <span class="warn" title="Sin grupo, las dosis se reparten entre ' + esc(grs.map(function(x){ return x.nombre; }).join(', ')) + '">⚠ elige grupo</span>' : '';
+    return '<tr><td><select class="fG">' + opt('', '— solo COVID —', !g) + gri.map(function(v){ return opt(v.n, v.n, v.n === g); }).join('') + '</select></td>' +
+      '<td><input type="text" class="fT" maxlength="40" style="min-width:120px" placeholder="p. ej. 60–64 años" value="' + esc(fl.texto || '') + '"></td>' +
+      '<td><select class="fR">' + opt('', '— sin grupo —', !fl.grupo) + grs.map(function(x){ return opt(x.nombre, x.nombre, x.nombre === fl.grupo); }).join('') + '</select>' + aviso + '</td>' +
+      '<td>' + (g ? (esAmbas ? '<span class="sub">1 pinchazo</span>' : '<input type="checkbox" class="fS"' + (fl.sola !== false ? ' checked' : '') + '>') : '') + '</td>' +
+      cov.map(function(c){ return '<td>' + (esAmbas ? '' : '<input type="checkbox" class="fC" data-v="' + esc(c.n) + '"' + ((fl.covid || []).indexOf(c.n) >= 0 ? ' checked' : '') + '>') + '</td>'; }).join('') +
+      '<td><button class="btn fX" type="button" aria-label="Quitar fila">✕</button></td></tr>';
+  }
+  function repintarContadores(){ pintarContadores(leerContadoresForm().concat(Array.prototype.filter.call(document.querySelectorAll('#cCon .kcard'), function(c){ return !c.querySelector('.kN').value.trim(); }).map(function(){ return { nombre: '', filas: [] }; }))); }
+  $('cCon').addEventListener('change', function(e){ if (e.target.classList.contains('fG') || e.target.classList.contains('fR')) repintarContadores(); });
+  $('cCon').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.classList.contains('fX')) b.closest('tr').remove();
+    else if (b.classList.contains('kX')){ if (confirm('¿Quitar este contador?')) b.closest('.kcard').remove(); }
+    else if (b.classList.contains('kF')){
+      var vs = vacunasForm(), gri = vs.filter(function(v){ return v.p !== 'COVID'; }), cov = vs.filter(function(v){ return v.p === 'COVID'; }), am = {};
+      vs.forEach(function(v){ am[v.n] = v.p === 'Gripe y COVID'; });
+      b.closest('.kcard').querySelector('tbody').insertAdjacentHTML('beforeend', filaK({ gripe: gri[0] ? gri[0].n : '', sola: true, covid: [] }, gri, cov, am));
+    }
+  });
+  $('addCon').addEventListener('click', function(){ var l = leerContadoresForm(); l.push({ nombre: 'Contador ' + (l.length + 1), filas: [] }); pintarContadores(l); });
+  // Los 3 de ejemplo: busca las vacunas y los grupos por el nombre; lo que no encuentre queda para elegirlo a mano.
+  $('ejCon').addEventListener('click', function(){
+    if (leerContadoresForm().length && !confirm('Se sustituyen los contadores que hay por los 3 de ejemplo. ¿Seguir?')) return;
+    var vs = vacunasForm();
+    var vac = function(re, tipo){ var v = vs.filter(function(x){ return re.test(x.n) && (!tipo || x.p === tipo); })[0]; return v ? v.n : ''; };
+    var efl = vac(/efluelda/i), vax = vac(/vaxigrip/i), flu = vac(/fluenz/i), mco = vac(/combriax/i, 'Gripe y COVID');
+    var com = vac(/comirnaty.*30|comirnaty/i, 'COVID'), spi = vac(/spikevax/i, 'COVID');
+    var gr = function(v, re){ var gs = gruposDe(v).filter(function(g){ return re.test(g.nombre); }); return gs[0] ? gs[0].nombre : ''; };
+    var g65 = efl ? (gruposDe(efl)[0] || {}).nombre || '' : '';
+    var g6064 = gr(vax, /60s*[–-]s*64/), gMen = gr(vax, /menor|<s*60|12s*[–-]s*59|riesgo/i);
+    var gCov = function(v){ var gs = gruposDe(v); return gs.length === 1 ? gs[0].nombre : ''; };
+    var F = function(gripe, texto, grupo, sola, covid){ return { gripe: gripe, texto: texto, grupo: grupo, sola: sola, covid: covid.filter(Boolean) }; };
+    var adultos = function(combo){
+      var l = [];
+      if (efl) l.push(F(efl, '', g65, true, combo ? [com, spi] : [com]));
+      if (vax) l.push(F(vax, '60–64 años', g6064, true, [com]));
+      if (vax) l.push(F(vax, 'menores de 60', gMen, true, [com]));
+      if (combo && mco) l.push(F(mco, '', gCov(mco) && gruposDe(mco).length === 1 ? gCov(mco) : (gruposDe(mco).filter(function(g){ return g.vacunas.indexOf(efl) >= 0; })[0] || {}).nombre || '', true, []));
+      if (com) l.push(F('', '', gCov(com), false, [com]));
+      return l;
+    };
+    var pedi = [];
+    if (vax) pedi.push(F(vax, '6–23 meses', gr(vax, /6s*[–-]s*23/), true, []));
+    if (flu) pedi.push(F(flu, '2–11 años', gr(flu, /2s*[–-]s*11/) || (gruposDe(flu)[0] || {}).nombre || '', true, []));
+    if (vax) pedi.push(F(vax, '12–14 años', gr(vax, /12s*[–-]s*14|12s*[–-]s*59|riesgo/i), true, []));
+    pintarContadores([{ nombre: 'Adultos + COMBO-GAL', filas: adultos(true) }, { nombre: 'Adultos', filas: adultos(false) }, { nombre: 'Pediatría', filas: pedi }]);
+    $('cfgMsg').className = 'msg'; $('cfgMsg').textContent = 'Contadores de ejemplo creados. Revisa el grupo de cada fila (las marcadas con ⚠ no lo tienen) y pulsa «Guardar configuración».';
+  });
+  // ---------- Pautas del contador (casillas) ----------
+  var pautasMarcadas = null; // null = todas
+  function adivinar(n){
+    n = String(n).toLowerCase();
+    if (/combriax|mrna-?1083/.test(n)) return 'Gripe y COVID';
+    if (/covid|comirnaty|spikevax|bimervax|nuvaxovid|vidprevtyn|kostaive/.test(n)) return 'COVID';
+    return 'Gripe';
+  }
+  function vacunasForm(){
+    return Array.prototype.map.call(document.querySelectorAll('#cVac tr'), function(tr){
+      return { n: tr.querySelector('.vN').value.trim(), p: tr.querySelector('.vP').value, a: tr.querySelector('.vA').checked };
+    }).filter(function(v){ return v.n && v.a; });
+  }
+  function pintarPautas(){
+    var vs = vacunasForm(), antes = leerPautasForm(true);
+    if (antes) pautasMarcadas = antes;
+    var gri = vs.filter(function(v){ return v.p !== 'COVID'; }), cov = vs.filter(function(v){ return v.p === 'COVID'; });
+    var marcada = function(g, c){ return !pautasMarcadas || pautasMarcadas.indexOf(g + '|' + c) >= 0; };
+    var caja = function(g, c){ return '<td><input type="checkbox" class="pC" data-g="' + esc(g) + '" data-c="' + esc(c) + '"' + (marcada(g, c) ? ' checked' : '') + ' aria-label="' + esc([g, c].filter(Boolean).join(' + ')) + '"></td>'; };
+    var h = '<thead><tr><th></th><th>sola</th>' + cov.map(function(c){ return '<th>+ ' + esc(c.n) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    gri.forEach(function(g){
+      h += '<tr><td>' + esc(g.n) + (g.p === 'Gripe y COVID' ? ' <span class="sub">(gripe + COVID)</span>' : '') + '</td>' + caja(g.n, '') +
+        cov.map(function(c){ return g.p === 'Gripe y COVID' ? '<td></td>' : caja(g.n, c.n); }).join('') + '</tr>';
+    });
+    if (cov.length) h += '<tr><td>Solo COVID</td><td></td>' + cov.map(function(c){ return caja('', c.n); }).join('') + '</tr>';
+    $('cPau').innerHTML = h + '</tbody>';
+    if (document.querySelector('#cCon .kcard')) repintarContadores();
+  }
+  // Texto «Efluelda; Efluelda + Comirnaty30; …» de las casillas marcadas (crudo = lista de claves).
+  function leerPautasForm(crudo){
+    var cs = document.querySelectorAll('#cPau .pC');
+    if (!cs.length) return crudo ? null : undefined;
+    var m = Array.prototype.filter.call(cs, function(x){ return x.checked; });
+    if (crudo) return m.map(function(x){ return x.getAttribute('data-g') + '|' + x.getAttribute('data-c'); });
+    return m.map(function(x){ return [x.getAttribute('data-g'), x.getAttribute('data-c')].filter(Boolean).join(' + '); }).join('; ');
+  }
+  // ---------- Perfiles y profesionales ----------
+  function perfilesForm(){
+    return Array.prototype.map.call(document.querySelectorAll('#cPer tr'), function(tr){
+      var h = tr.querySelector('.qH').value.trim();
+      return { nombre: tr.querySelector('.qN').value.trim(), huecos: h === '' ? '' : Number(h) };
+    }).filter(function(p){ return p.nombre; });
+  }
+  function filaPer(p){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" class="qN" maxlength="40" placeholder="Enfermería de familia"></td><td><input type="number" class="qH" min="0" step="1" inputmode="numeric" style="width:110px" placeholder="general"></td>' +
+      '<td><button class="btn qX" type="button" aria-label="Quitar perfil">✕</button></td>';
+    tr.querySelector('.qN').value = p.nombre || '';
+    tr.querySelector('.qH').value = p.huecos == null ? '' : p.huecos;
+    tr.querySelector('.qN').addEventListener('change', opcionesPerfil);
+    tr.querySelector('.qH').addEventListener('input', capTxt);
+    tr.querySelector('.qX').addEventListener('click', function(){ tr.remove(); opcionesPerfil(); });
+    return tr;
+  }
+  // Rellena los desplegables de perfil de cada profesional, conservando lo elegido.
+  function opcionesPerfil(){
+    var ps = perfilesForm();
+    document.querySelectorAll('#cPro .pP').forEach(function(sel){
+      var v = sel.value || sel.getAttribute('data-v') || '';
+      sel.innerHTML = '<option value="">— sin perfil —</option>' + ps.map(function(p){
+        return '<option value="' + esc(p.nombre) + '">' + esc(p.nombre) + (p.huecos === '' ? '' : ' (' + (p.huecos ? p.huecos + ' huecos' : 'sin cita') + ')') + '</option>';
+      }).join('');
+      sel.value = ps.some(function(p){ return p.nombre === v; }) ? v : '';
+    });
+    capTxt();
+  }
+  function filaPro(n, perfil, h){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" class="pN" maxlength="60"></td><td><select class="pP"></select></td>' +
+      '<td><input type="number" class="pH" min="0" step="1" inputmode="numeric" style="width:110px" placeholder="del perfil"></td>' +
+      '<td><button class="btn pX" type="button" aria-label="Quitar">✕</button></td>';
+    tr.querySelector('.pN').value = n || '';
+    tr.querySelector('.pP').setAttribute('data-v', perfil || '');
+    tr.querySelector('.pH').value = h == null ? '' : h;
+    tr.querySelector('.pH').addEventListener('input', capTxt);
+    tr.querySelector('.pP').addEventListener('change', capTxt);
+    tr.querySelector('.pX').addEventListener('click', function(){ tr.remove(); capTxt(); });
+    setTimeout(opcionesPerfil, 0);
+    return tr;
+  }
+  $('addPer').addEventListener('click', function(){ $('cPer').appendChild(filaPer({ nombre: '', huecos: null })); $('cPer').lastChild.querySelector('.qN').focus(); });
+  $('addPro').addEventListener('click', function(){ $('cPro').appendChild(filaPro('', '', null)); $('cPro').lastChild.querySelector('.pN').focus(); });
+  // Capacidad: si alguien tiene perfil o huecos propios, suma de los de cada uno; si no, enfermeras × huecos.
+  function huecosForm(f, p){
+    if (p.huecos !== '') return p.huecos;
+    var pf = f.perfiles.filter(function(x){ return x.nombre === p.perfil; })[0];
+    return pf && pf.huecos !== '' ? pf.huecos : f.huecos;
+  }
+  function capDiaForm(f){
+    var propios = f.profesionales.some(function(p){ return p.huecos !== '' || p.perfil; });
+    if (!propios || !f.profesionales.length) return f.enfermeras * f.huecos;
+    return f.profesionales.reduce(function(s, p){ return s + huecosForm(f, p); }, 0);
+  }
   function capTxt(){
-    var f = leerForm(), cap = f.enfermeras * f.huecos, sem = cap * f.dias;
+    var f = leerForm(), cap = capDiaForm(f), sem = cap * f.dias;
     var nec = f.vacunas.filter(function(v){ return v.activa; }).reduce(function(s, v){ return s + v.necesarias; }, 0);
     var p = pct(nec, sem);
-    $('capTxt').innerHTML = 'Capacidad: <b>' + nf(cap) + '</b> huecos al día · <b>' + nf(sem) + '</b> a la semana. ' +
+    var propios = f.profesionales.some(function(x){ return x.huecos !== '' || x.perfil; });
+    $('capTxt').innerHTML = 'Capacidad: <b>' + nf(cap) + '</b> huecos al día · <b>' + nf(sem) + '</b> a la semana' +
+      (propios ? ' <span class="sub">(suma de los huecos de cada profesional según su perfil; «Enfermeras/os que vacunan» ya no se usa)</span>' : '') + '. ' +
       'Necesarias: <b>' + nf(nec) + '</b> dosis a la semana' + (p != null ? ' (<span class="' + (p > 100 ? 'err' : 'ok') + '">' + p + ' % de la capacidad</span>)' : '') + '.' +
       (p > 100 ? ' Faltan unos ' + nf(Math.ceil((nec - sem) / ((f.huecos * f.dias) || 1))) + ' profesionales a jornada de vacunación o más huecos.' : '');
   }
   ['cEnf','cHue','cDia'].forEach(function(id){ $(id).addEventListener('input', capTxt); });
-  $('addVac').addEventListener('click', function(){ $('cVac').appendChild(filaVac({nombre:'', necesarias:0, activa:true})); $('cVac').lastChild.querySelector('.vN').focus(); });
+  $('addVac').addEventListener('click', function(){ $('cVac').appendChild(filaVac({nombre:'', necesarias:0, activa:true})); $('cVac').lastChild.querySelector('.vN').focus(); pintarPautas(); });
   $('cClaveGen').addEventListener('click', function(){
     var abc = 'abcdefghijkmnpqrstuvwxyz23456789', a = new Uint32Array(10), k = '';
     crypto.getRandomValues(a);

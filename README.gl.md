@@ -31,7 +31,7 @@ Contador de doses para campañas de vacinación en centros de saúde, feito con 
 
 **Panel** (protexido con PIN)
 - Doses postas por día, semana, vacina, quenda e profesional.
-- Doses necesarias por semana fronte a doses postas, e capacidade (enfermeiras/os × ocos × días).
+- Doses necesarias por semana fronte a doses postas, pacientes vacinados e capacidade (ocos de cada perfil —familia, pediatría…— × días; quen vacina sen cita, como a matrona, cóntase á parte).
 - **Stock**: o que queda de cada vacina, consumo medio semanal, semanas que quedan e avisos de stock mínimo.
 - **Previsión da campaña**: cobertura por grupo de poboación, data estimada para chegar ao obxectivo, ritmo necesario, **pedido suxerido** para o próximo reparto e doses que sobrarían ou faltarían ao final.
 - **Resumo semanal por correo** (opcional), cada luns ás 8:00.
@@ -104,13 +104,16 @@ Se prefires que non pregunte nada (por exemplo, para repartilo nun USB a todo o 
 ### Contador
 1. Abre a ligazón do contador (no móbil: *Engadir á pantalla de inicio*).
 2. Escolle o teu nome e a quenda. Lémbranse para a próxima vez.
-3. Preme a vacina cada vez que a poñas; se te equivocas, preme **−1**. Se unha vacina está en varios grupos da campaña, sae un botón por grupo (por exemplo, *Vaxigrip · 60–64 anos* e *Vaxigrip · Menores de 60*): preme o do grupo desa persoa.
+3. Preme **unha casa por paciente**. O contador é unha cuadrícula: cada **fila** é a vacina da gripe e cada **columna** di se leva tamén unha de COVID (*sola*, *+ Comirnaty30*, *+ Spikevax*…). Por exemplo, a casa *Efluelda · + Comirnaty30* apunta un paciente con dúas doses (e baixa o stock das dúas); *mCombriax* é unha soa picada con gripe e COVID; a fila *Solo COVID* é para quen só se pon a de COVID. Se unha vacina de gripe está en varios grupos da campaña, a súa fila sae partida por grupo (por exemplo, *Vaxigrip 60–64 anos* e *Vaxigrip menores de 60*): preme a do grupo desa persoa. Se te equivocas, preme **↶ Deshacer**: dite que paciente vai quitar (o último que apuntaches) e pide confirmación. As casas que saen escóllense no panel (*Configuración del centro › Pautas del contador*).
+   - **Contadores (perfís)**: en *Configuración del centro › Contadores* podes definir varios contadores, por exemplo *Adultos + COMBO-GAL*, *Adultos* e *Pediatría* (o botón «Crear los 3 de ejemplo» mónraos e busca os grupos polo nome). Cada fila é unha vacina de gripe (ou *só COVID*) cun texto («60–64 anos», «6–23 meses»…), o **grupo da campaña** onde contan as súas doses e as súas casas (*sola* e con que vacina de COVID). No contador, cada ordenador ou móbil escolle o seu contador unha vez e lémbrao. Sen contadores, a cuadrícula móntase soa coas *Pautas del contador*.
 4. Arriba á dereita verás **✓ Guardado**, ou cantos toques quedan pendentes de enviar. Non peches a páxina mentres haxa pendentes.
 
 ### Panel
 - Escolle o período (hoxe, esta semana, semana pasada, últimas 4 semanas, toda a campaña ou datas concretas).
 - **Necesidades cubertas**: doses postas fronte a doses necesarias do período.
-- **Ocos aproveitados**: doses postas fronte á capacidade do centro.
+- **Pacientes** e **doses**: un paciente con gripe e COVID son 2 doses pero ocupa 1 oco. **Ocos aproveitados** = pacientes fronte á capacidade do centro; o panel amosa tamén as doses por paciente. (Antes da v1.4 cada dose contaba como un paciente.)
+- **Pacientes reais dun día**: se un día non cadra (por exemplo, antes da v1.4, cando un paciente con gripe e COVID contaba como dous), en *Día a día* escribe os pacientes que se vacinaron de verdade segundo a axenda. Substitúen o cálculo no total dese día, da súa semana e do período (marcados con ✎); as táboas por perfil e por profesional seguen calculadas. Gardar o día coa casa baleira quita a corrección.
+- **Perfís e ocos**: en *Configuración del centro › Perfiles* pon cada tipo de axenda cos seus **ocos por día**, por exemplo *Enfermaría de familia 14 · Enfermaría pediátrica 8 · Enfermaría obstétrica 0*. **0 = vacina sen cita**, de forma oportunista (a matrona). En *Profesionales* escolles o perfil de cada persoa e, só se ten outros ocos (p. ex. redución de xornada), os seus **ocos propios**. A capacidade pasa a ser a suma dos ocos de cada profesional; a capacidade real de cada día suma os de quen vacinou ese día; os pacientes de quen vacina sen cita saen á parte (**sen cita**) e non contan como ocos ocupados. A táboa **Por perfil** amosa pacientes, capacidade e ocos aproveitados de cada perfil, sen nomes (vese aínda que a vista por profesional estea apagada). Se non usas perfís, a capacidade segue a ser enfermeiras/os × ocos xerais.
 - **Evolución por semanas**, **día a día** e **por profesional** (isto último pódese agochar na configuración).
 
 ### Stock
@@ -137,6 +140,7 @@ Como se calcula o stock de cada vacina:
 **1. Configura a campaña** (sección *Campaña y previsión* do panel):
 - Carga un modelo. Vén o de **Galicia 2026 (gripe)**, feito a partir da *Instrución da campaña 2026 de vacinación fronte á gripe e á covid-19* do SERGAS: grupos, datas de inicio escalonadas, vacina de cada grupo, obxectivos de cobertura e días de reparto. Tamén podes crear os grupos a man.
 - Pon a **poboación de cada grupo** (das vosas cotas ou do informe de coberturas). É o único que hai que meter a man.
+- Opcional, pero recomendable: o **teito esperado %** de cada grupo, a cobertura á que de verdade se adoita chegar (por exemplo, a da campaña pasada). Sempre hai xente que non acode á cita ou non quere vacinarse; co teito, a previsión teno en conta.
 
 | Grupo (modelo Galicia 2026) | Vacina | Desde | Obxectivo |
 |---|---|---|---|
@@ -154,16 +158,22 @@ Na aplicación os nomes dos grupos están en castelán. Días de reparto: do 13/
 Se unha vacina se pide con **outro calendario** (por exemplo, a COVID), engade unha fila na lapela *Repartos* co seu nome na columna **Vacunas**. Exemplo: desde 13/10/2026 ata 31/12/2026, días `mar, jue`, antelación `0` (pídese o mesmo día do reparto), hora límite `12:00`, vacinas `COVID-19`. As filas coa columna *Vacunas* baleira valen para todas as demais.
 
 **2. Como se calcula** (son estimacións):
-- **Vacinados por grupo** = último **dato oficial** do grupo (se o metes) + doses do contador desde entón. Se unha vacina está en varios grupos, o contador amosa un botón por grupo e cada dose conta para o grupo premido (desde a v1.3). As doses sen grupo (anteriores á v1.3 ou dun contador antigo) contan para os grupos que usan esa vacina e xa comezaron, repartidas segundo a poboación diana de cada un. Un grupo sen poboación (por exemplo, *Menores de 60*) só conta doses e consumo, sen cobertura.
+- **Vacinados por grupo** = último **dato oficial** do grupo (se o metes) + doses do contador desde entón. Cada vacina di en *Vacunas* fronte a que protexe (*Gripe*, *COVID* ou *Gripe y COVID*, como mCombriax), e cada grupo é da enfermidade que protexen todas as súas vacinas. Unha dose conta, por cada enfermidade que protexe, nos grupos desa enfermidade: unha mCombriax conta enteira en «65 o más» (gripe) e enteira en «65 o más · COVID», e un paciente con Efluelda + Comirnaty30 conta unha vez en cada un. Se unha vacina está en varios grupos da mesma enfermidade, o contador pártea por grupo e cada dose conta para o grupo premido; as doses sen grupo repártense segundo a poboación diana. Non mestures vacinas de gripe e de COVID no mesmo grupo (o panel avisa). Un grupo sen poboación (por exemplo, *Menores de 60*) só conta doses e consumo, sen cobertura.
+- **Suma en**: os grupos co mesmo texto nesta columna súmanse nunha liña. En Galicia o obxectivo oficial é do conxunto (**cobertura ≥ 75 % en 60 ou máis anos**, Instrución 2026, ap. 2.2), así que pon «60 o más» en «65 o más» e «60–64 años»: o panel compara esa liña co 75 %.
 - **Dato oficial**: cando teñas o informe de coberturas, mete a **cobertura (%)** ou os vacinados de cada grupo e a data ata a que chega o informe. Corrixe a estimación igual que un reconto corrixe o stock, e o contador suma as doses posteriores a esa data. Serve tamén para comezar a usar a app a metade de campaña.
 - **Ritmo** = doses dos últimos 14 días ÷ días laborables. **Chega ao obxectivo** = data estimada se se mantén o ritmo. **Necesario / día** = o que falta ÷ días laborables que quedan.
+- **Teito esperado**: se o pos, o ritmo vaise freando a medida que o grupo se achega a el (cada día vacínase a mesma fracción dos que aínda poden vir: se hoxe faltan 300 ata o teito e vacinades 18 ao día, a previsión conta 18, logo 17, 16…). Así a data de *Chega ao obxectivo* é realista, o obxectivo pode non alcanzarse nunca se está por riba do teito e o **consumo e o pedido baixan sós ao final da campaña**, sen que sobren vacinas. Sen teito, o ritmo actual mantense.
+- **Ao final**: cobertura prevista o último día da campaña.
+- Un grupo que comezou hai 3 días laborables ou menos aínda non ten ritmo: ata entón úsase o plan (poboación × teito ou obxectivo, repartido entre os seus días de campaña).
 - **Pedido suxerido** = consumo previsto ata o reparto seguinte + stock mínimo − stock actual, sen pasar do que falta para acabar a campaña. O consumo previsto suma o ritmo de cada grupo ata que chega ao seu obxectivo e os grupos que aínda non comezaron. Se xa tes un pedido en camiño, réstao.
 - **Ao final da campaña**: doses que sobrarían ou faltarían. Avisa se o que sobra pasa do 5 % do recibido.
 - Non ten en conta os festivos.
 
-**3. Resumo semanal por correo**: escribe o correo, garda e preme *Activar el envío de los lunes*. Chega ás 8:00 coas doses da semana anterior, a cobertura por grupo, o stock e o pedido suxerido. Non inclúe datos de pacientes.
+**3. Asistencia ás citas** (opcional): escribe as vosas axendas en *Campaña y previsión* (por exemplo, `GRI, Gri2`). Logo, na previsión, apunta cada día, mirando a axenda, cantas persoas había **citadas** en cada unha e cantas **faltaron** (sen nomes). O panel amosa a asistencia dos últimos 28 días por axenda, os ocos perdidos e **cantas citas facer ao día para non perder ocos** (citados por día ÷ asistencia: se citades 7 e vén o 70 %, citade 10). Gárdase na lapela *Citas*.
 
-**4. Aviso de pedido por Telegram (ou correo)**: o día en que vence o prazo do pedido do próximo reparto, á hora que escollas (das 6:00 ás 13:00), chégache unha mensaxe co que hai que pedir de cada vacina, o stock e cando chega. Se non fai falla pedir nada, non envía nada, e avisa unha soa vez por reparto.
+**4. Resumo semanal por correo**: escribe o correo, garda e preme *Activar el envío de los lunes*. Chega ás 8:00 coas doses da semana anterior, a cobertura por grupo, o stock e o pedido suxerido. Non inclúe datos de pacientes.
+
+**5. Aviso de pedido por Telegram (ou correo)**: o día en que vence o prazo do pedido do próximo reparto, á hora que escollas (das 6:00 ás 13:00), chégache unha mensaxe co que hai que pedir de cada vacina, o stock e cando chega. Se non fai falla pedir nada, non envía nada, e avisa unha soa vez por reparto.
 
 Para conectalo a Telegram (en *Campaña y previsión › Aviso de pedido*):
 1. En Telegram, busca **@BotFather** (o oficial) e escríbelle `/newbot`. Ponlle un nome e un usuario que remate en `bot`.
@@ -189,12 +199,15 @@ Os datos non se perden: ao abrir o contador ou o panel, a folla ponse ao día so
 
 | Lapela | Contido |
 |---|---|
-| Registro | Unha fila por toque: momento, data, semana, quenda, profesional, vacina, +1/−1, id, grupo (se a vacina está en varios grupos) |
+| Registro | Unha fila por dose: momento, data, semana, quenda, profesional, vacina, +1/−1, id, grupo, **paciente** (1 na primeira dose de cada paciente, 0 na segunda, −1 ao desfacer; sumando esta columna saen os pacientes), **pauta** (p. ex. «Efluelda + Comirnaty30») e **fila** do contador (p. ex. «12–14 anos») |
 | Configuración | Nome do centro, capacidade, PIN do panel… |
-| Vacunas | Vacina, doses necesarias por semana, activa, stock mínimo |
-| Profesionales | Nomes que saen no contador |
+| Vacunas | Vacina, doses necesarias por semana, activa, stock mínimo, protexe fronte a (Gripe, COVID ou Gripe e COVID) |
+| Profesionales | Nomes que saen no contador, perfil e ocos propios por día (baleiro = os do perfil; 0 = sen cita) |
 | Stock | Entradas, mermas e recontos |
-| Grupos | Grupos de poboación: vacinas, data de inicio, poboación, obxectivo |
+| Grupos | Grupos de poboación: vacinas, data de inicio, poboación, obxectivo, teito esperado, suma en |
+| Citas | Citados e faltas por día e axenda (opcional) |
+| Pacientes del día | Pacientes reais dun día apuntados a man (opcional); vale o último dato de cada día |
+| Contadores | Filas de cada contador: contador, vacina de gripe, texto, grupo, sola (Si/Non) e vacinas de COVID (opcional) |
 | Coberturas | Datos oficiais de vacinados por grupo (opcional) |
 | Repartos | Días de reparto, antelación e hora límite do pedido; opcionalmente, só para algunhas vacinas |
 
